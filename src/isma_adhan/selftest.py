@@ -96,4 +96,12 @@ def run_self_test() -> int:
         if not ok:
             failed += 1
     print(f"SELF-TEST {'PASS' if failed == 0 else 'FAIL'} ({len(checks) - failed}/{len(checks)})")
+    # Windowed (console=False) exes cannot print or reliably signal via exit
+    # code, so also record the outcome in app.log for CI and diagnostics.
+    try:
+        from .bootstrap import milestone
+
+        milestone(f"self-test result: {'PASS' if failed == 0 else 'FAIL'} ({len(checks) - failed}/{len(checks)})")
+    except Exception:
+        pass
     return 0 if failed == 0 else 1

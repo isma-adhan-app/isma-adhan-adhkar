@@ -19,8 +19,8 @@ binaries += tmp[1]
 hiddenimports += tmp[2]
 
 a = Analysis(
-    ["src/isma_adhan/__main__.py"],
-    pathex=["src"],
+    ["launcher.py"],
+    pathex=["src", "."],
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,

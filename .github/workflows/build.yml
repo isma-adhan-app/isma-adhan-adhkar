@@ -27,23 +27,40 @@ jobs:
           SDL_VIDEODRIVER: dummy
         run: python -m pytest tests/ -q
 
+      - name: Source-level entry self-test
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: python launcher.py --self-test
+
       - name: Build onedir app
         run: pyinstaller IsmaAdhan.spec
 
       - name: Packaged headless self-test
         env:
           SDL_AUDIODRIVER: dummy
-        run: .\dist\IsmaAdhan\IsmaAdhan.exe --self-test
+        shell: pwsh
+        run: |
+          Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
+          .\dist\IsmaAdhan\IsmaAdhan.exe --self-test
+          Start-Sleep -Seconds 2
+          $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
+          Write-Host $log
+          if ($log -notmatch 'startup: entry') { throw 'frozen exe never reached app code (entry import broken)' }
+          if ($log -notmatch 'self-test result: PASS') { throw 'packaged self-test did not pass - see log above' }
 
       - name: GUI launch smoke test (informational)
         continue-on-error: true
         shell: pwsh
         run: |
+          Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
           $p = Start-Process .\dist\IsmaAdhan\IsmaAdhan.exe -PassThru
           Start-Sleep -Seconds 20
-          if ($p.HasExited) { Write-Warning "GUI exited early (code $($p.ExitCode)) - expected in session 0"; exit 1 }
+          if ($p.HasExited) { Write-Warning "GUI exited early (code $($p.ExitCode)) - expected in session 0"; Get-Content "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue; exit 1 }
           Write-Host "GUI process alive after 20s, pid $($p.Id)"
           Stop-Process -Id $p.Id -Force
+          $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction SilentlyContinue
+          Write-Host $log
+          if ($log -notmatch 'startup: window shown') { Write-Warning 'window-shown milestone missing from app.log'; exit 1 }
 
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
@@ -70,5 +87,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "v0.1.2-build$env:GITHUB_RUN_NUMBER"
+          $tag = "v0.1.3-build$env:GITHUB_RUN_NUMBER"
           gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside." --latest
