@@ -70,5 +70,5 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "v0.1.1-build$env:GITHUB_RUN_NUMBER"
+          $tag = "v0.1.2-build$env:GITHUB_RUN_NUMBER"
           gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside." --latest

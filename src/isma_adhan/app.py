@@ -1,30 +1,26 @@
-"""wx.App bootstrap, system tray icon, startup announcement, crash logging."""
+"""wx.App bootstrap, system tray icon, startup announcement, crash logging.
+
+Startup order is defensive: every risky step is wrapped and milestones are
+appended to app.log so a machine where "nothing happens" still tells us, via
+the log, exactly where startup stopped. The main window is ALWAYS shown and
+raised on a manual launch (only the autostart entry passes --minimized), and
+the first audible feedback is a guaranteed Windows chime, then the spoken
+announcement once the event loop is running.
+"""
 from __future__ import annotations
 
 import traceback
-from datetime import datetime
 
 import wx
 import wx.adv
 
+from . import bootstrap
 from . import sounds as snd
 from . import strings as S
 
 
-def _log_path():
-    from .config import app_data_dir
-
-    d = app_data_dir()
-    d.mkdir(parents=True, exist_ok=True)
-    return d / "app.log"
-
-
 def _log(line: str) -> None:
-    try:
-        with open(_log_path(), "a", encoding="utf-8") as f:
-            f.write(f"[{datetime.now().isoformat(timespec='seconds')}] {line}\n")
-    except OSError:
-        pass
+    bootstrap.milestone(line)
 
 
 class TrayIcon(wx.adv.TaskBarIcon):
@@ -50,20 +46,67 @@ class TrayIcon(wx.adv.TaskBarIcon):
         return menu
 
 
+def _startup_chime() -> None:
+    """A sound that does not depend on SAPI or the app's audio stack, so a
+    blind user always gets an audible 'I started' signal."""
+    try:
+        import winsound
+
+        winsound.PlaySound(
+            "SystemExclamation", winsound.SND_ALIAS | winsound.SND_ASYNC | winsound.SND_NODEFAULT
+        )
+        _log("startup: chime played")
+    except Exception as exc:
+        _log(f"startup: chime failed: {exc!r}")
+
+
+def _after_window_shown(frame) -> None:
+    """Runs once the event loop is live and the window is on screen."""
+    bootstrap.window_shown()
+    _startup_chime()
+    if bootstrap.previous_run_crashed():
+        msg = "آخر محاولة تشغيل توقفت قبل اكتمال فتح البرنامج. التفاصيل محفوظة في ملف app.log."
+        frame.log(msg)
+        _log("startup: previous launch did not reach the window")
+    from .audio import NullPlayer
+
+    if isinstance(frame.player, NullPlayer):
+        msg = "تعذر تشغيل الصوت على هذا الجهاز. التنبيهات الصوتية لن تعمل حتى يصلح الصوت."
+        frame.log(msg)
+        _log(f"startup: audio unavailable: {frame.player.reason}")
+    try:
+        frame.announce_startup()
+        _log("startup: announcement queued")
+    except Exception as exc:
+        _log(f"startup: announcement failed: {exc!r}")
+
+
 def run(minimized: bool = False) -> int:
+    _log("startup: importing ui modules")
     from .audio import create_player
     from .main_window import MainFrame
     from .speech import Speaker
 
-    _log("app starting")
+    _log("startup: imports ok")
     app = wx.App()
+    _log("startup: wx.App created")
     try:
-        frame = MainFrame(player=create_player(), speaker=Speaker())
-        frame.tray = TrayIcon(frame)
-        if not minimized:
-            frame.Show()
-        frame.announce_startup()
-        _log("main window shown")
+        player = create_player()
+        _log(f"startup: player created ({type(player).__name__})")
+        speaker = Speaker()
+        frame = MainFrame(player=player, speaker=speaker)
+        _log("startup: main window constructed")
+        try:
+            frame.tray = TrayIcon(frame)
+            _log("startup: tray icon ok")
+        except Exception as exc:
+            _log(f"startup: tray icon failed: {exc!r}")
+        if minimized:
+            _log("startup: started minimized (autostart)")
+        else:
+            frame.show_window()
+            _log("startup: window shown")
+        wx.CallAfter(_after_window_shown, frame)
         app.MainLoop()
         _log("app exited normally")
         return 0

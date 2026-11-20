@@ -6,6 +6,10 @@ import sys
 
 
 def main() -> int:
+    from . import bootstrap
+
+    bootstrap.init()  # first: every later crash must leave a trace in app.log
+
     parser = argparse.ArgumentParser(prog="isma_adhan")
     parser.add_argument(
         "--minimized",
