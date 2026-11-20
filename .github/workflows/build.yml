@@ -1,0 +1,59 @@
+name: build-windows
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pyinstaller pytest
+
+      - name: Unit tests
+        env:
+          SDL_AUDIODRIVER: dummy
+          SDL_VIDEODRIVER: dummy
+        run: python -m pytest tests/ -q
+
+      - name: Build exe
+        run: pyinstaller IsmaAdhan.spec
+
+      - name: Packaged headless self-test
+        env:
+          SDL_AUDIODRIVER: dummy
+        run: .\dist\IsmaAdhan.exe --self-test
+
+      - name: GUI launch smoke test (informational)
+        continue-on-error: true
+        shell: pwsh
+        run: |
+          $p = Start-Process .\dist\IsmaAdhan.exe -PassThru
+          Start-Sleep -Seconds 20
+          if ($p.HasExited) { Write-Warning "GUI exited early (code $($p.ExitCode)) - expected in session 0"; exit 1 }
+          Write-Host "GUI process alive after 20s, pid $($p.Id)"
+          Stop-Process -Id $p.Id -Force
+
+      - name: Upload exe artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: IsmaAdhan-exe
+          path: dist/IsmaAdhan.exe
+          retention-days: 30
+
+      - name: Publish release with exe
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: |
+          $tag = "v0.1.0-build$env:GITHUB_RUN_NUMBER"
+          gh release create $tag dist/IsmaAdhan.exe --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. Self-test and unit tests passed." --latest

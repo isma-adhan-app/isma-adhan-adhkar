@@ -1,0 +1,44 @@
+# -*- mode: python ; coding: utf-8 -*-
+# PyInstaller build spec for اسمع أذان وأذكار (IsmaAdhan).
+# Build on Windows with:  pyinstaller IsmaAdhan.spec
+# Output: dist/IsmaAdhan.exe  (single file, no console window)
+
+from PyInstaller.utils.hooks import collect_all
+
+datas = [("assets", "assets")]
+binaries = []
+hiddenimports = []
+
+# IANA timezone database for zoneinfo on Windows
+tmp = collect_all("tzdata")
+datas += tmp[0]
+binaries += tmp[1]
+hiddenimports += tmp[2]
+
+a = Analysis(
+    ["src/isma_adhan/__main__.py"],
+    pathex=["src"],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
+    hookspath=[],
+    runtime_hooks=[],
+    excludes=[],
+    noarchive=False,
+)
+pyz = PYZ(a.pure)
+
+exe = EXE(
+    pyz,
+    a.scripts,
+    a.binaries,
+    a.datas,
+    [],
+    name="IsmaAdhan",
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=False,
+    console=False,
+    icon="assets/icon.ico",
+)
