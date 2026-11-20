@@ -7,17 +7,26 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
 - every control reachable and usable with the keyboard alone (Tab + shortcuts)
 - prayer times computed fully offline with the Egyptian General Authority of
   Survey method (Fajr 19.5°, Isha 17.5°) - no internet needed after install
-- Egyptian city picker (28 cities), Cairo by default
+- works anywhere in the world: country + city picker covering 244 countries
+  and 1700+ cities (GeoNames data), with one-click auto-detection from the
+  Windows region and timezone settings
 - adhan at each prayer with a user-managed sound library (add your own
-  MP3/WAV/OGG); until a sound is chosen the app chimes and speaks the prayer
-  name through Windows speech (SAPI)
-- iqama alert a configurable number of minutes after each adhan
-- pre-adhan reminder, configurable 5-60 minutes before (steps of 5)
+  MP3/WAV/OGG); a different adhan sound can be assigned per prayer; until a
+  sound is chosen the app chimes and speaks the prayer name through Windows
+  speech (SAPI)
+- iqama alert a configurable number of minutes after each adhan, per prayer
+- pre-adhan reminder, configurable 5-60 minutes before (steps of 5), per prayer
+- post-prayer adhkar reminder, configurable 5-60 minutes after (steps of 5),
+  per prayer - plays a dhikr clip so the adhkar after prayer are not missed
+- 14 short adhkar clips bundled with the app (Arabic TTS, generated at build
+  time - see "Bundled audio licensing" below); the user can still add their
+  own clips on top
 - audio adhkar clips played in random order every 10/15/20/30 minutes,
   with quiet hours (default 23:00-05:00, toggleable)
 - Friday reminder for Surat Al-Kahf
 - system tray presence, optional autostart with Windows
 - Hijri date display (astronomical approximation, may differ by a day)
+- upgrading from v1.0 keeps all settings (the settings file migrates itself)
 
 ## Repository layout
 
@@ -67,15 +76,30 @@ worst difference over 7 dates x 6 prayers for Cairo is 1.3 minutes
 See docs/PACKAGING.md. Short version: `pyinstaller IsmaAdhan.spec` on
 Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 
-## Known limitations of v1
+## Known limitations of v1.1
 
 - The wxPython UI was developed on Linux without wxPython available, so it is
   code-reviewed and unit-tested below the UI layer but not yet click-tested on
   Windows. First Windows run may surface small UI bugs.
-- No adhan recording ships with the app (copyright); Amrw adds his own in the
-  الأصوات tab. Until then the app chimes and speaks the prayer name.
+- No recorded adhan ships with the app (copyright); the user adds their own
+  in the الأصوات tab. Until then the app chimes and speaks the prayer name.
+- The bundled adhkar clips are synthetic speech (eSpeak NG Arabic). They are
+  intelligible but robotic - a deliberate licensing choice, see below.
 - Maghrib is computed exactly at sunset per the Egyptian method.
 - Hijri date is the civil/astronomical calendar and can differ by +/-1 day
   from moon-sighting announcements.
 - pyttsx3/SAPI speech quality depends on the installed Windows voices; an
   Arabic voice gives the best result.
+
+## Bundled audio licensing
+
+The 14 clips in `assets/sounds/adhkar_bundled/` are generated with
+eSpeak NG (`tools/make_adhkar.py`, texts in `tools/adhkar_texts.json`).
+eSpeak NG is GPL as a *program*; its license places no restrictions on audio
+output generated with it, so these generated clips may be redistributed with
+the app. We chose TTS over recorded recitations because no recording we could
+verify carried a clearly redistributable license.
+
+Location data: GeoNames (cities15000, countryInfo - CC-BY 4.0,
+geonames.org) and the CLDR Windows-zones mapping (unicode.org license).
+Regenerate with `tools/build_world.py`.

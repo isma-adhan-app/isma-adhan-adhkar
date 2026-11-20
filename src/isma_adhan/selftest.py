@@ -29,6 +29,25 @@ def run_self_test() -> int:
             assert p.exists(), f"missing {p}"
         assert resource_path("assets", "icon.ico").exists(), "missing icon"
 
+    @check("bundled-adhkar")
+    def _():
+        from .sounds import bundled_adhkar
+
+        clips = bundled_adhkar()
+        assert len(clips) >= 10, f"only {len(clips)} bundled adhkar clips"
+        for path, text in clips:
+            assert path.exists() and path.stat().st_size > 2000, f"bad clip {path}"
+            assert text.strip(), f"clip without text: {path}"
+
+    @check("world-data")
+    def _():
+        from . import world
+
+        assert len(world.countries()) >= 200
+        cairo = [c for c in world.cities_of("EG") if "القاهرة" in world.city_display(c)]
+        assert cairo, "Cairo missing from world data"
+        assert cairo[0]["tz"] == "Africa/Cairo"
+
     @check("timezone-database")
     def _():
         from datetime import datetime

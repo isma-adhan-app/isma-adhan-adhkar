@@ -4,7 +4,16 @@ from datetime import date, datetime, time, timedelta, timezone
 import pytest
 
 from isma_adhan.config import Settings
-from isma_adhan.scheduler import ADHAN, ADHKAR, IQAMA, KAHF, PRE_ADHAN, SchedulerEngine
+from isma_adhan.prayer_times import ADHAN_PRAYERS
+from isma_adhan.scheduler import (
+    ADHAN,
+    ADHKAR,
+    IQAMA,
+    KAHF,
+    POST_ADHKAR,
+    PRE_ADHAN,
+    SchedulerEngine,
+)
 
 TZ = timezone(timedelta(hours=2))  # Africa/Cairo winter offset, fixed for tests
 
@@ -24,13 +33,14 @@ def provider(day: date):
 
 def make_engine(**overrides):
     s = Settings(
-        pre_adhan_minutes=5,
-        iqama_minutes=10,
         adhkar_enabled=False,
         adhkar_interval_minutes=0,
         kahf_enabled=True,
         kahf_time="10:00",
     )
+    s.pre_adhan_per = {p: 5 for p in ADHAN_PRAYERS}
+    s.iqama_per = {p: 10 for p in ADHAN_PRAYERS}
+    s.post_adhkar_per = {p: 0 for p in ADHAN_PRAYERS}
     for k, v in overrides.items():
         setattr(s, k, v)
     return SchedulerEngine(s, provider), s
@@ -59,19 +69,19 @@ def test_adhan_fires_exactly_once():
 def test_pre_adhan_offset():
     engine, _ = make_engine()
     assert (PRE_ADHAN, "fajr") in tick_kinds(engine, at(SAT, 4, 55))
-    engine2, _ = make_engine(pre_adhan_minutes=20)
+    engine2, _ = make_engine(pre_adhan_per={p: 20 for p in ADHAN_PRAYERS})
     assert tick_kinds(engine2, at(SAT, 4, 40)) == [(PRE_ADHAN, "fajr")]
 
 
 def test_pre_adhan_off():
-    engine, _ = make_engine(pre_adhan_minutes=0)
+    engine, _ = make_engine(pre_adhan_per={p: 0 for p in ADHAN_PRAYERS})
     assert tick_kinds(engine, at(SAT, 4, 55)) == []
 
 
 def test_iqama_offset_and_off():
     engine, _ = make_engine()
     assert (IQAMA, "fajr") in tick_kinds(engine, at(SAT, 5, 10))
-    engine2, _ = make_engine(iqama_minutes=0)
+    engine2, _ = make_engine(iqama_per={p: 0 for p in ADHAN_PRAYERS})
     assert tick_kinds(engine2, at(SAT, 5, 10)) == []
 
 
@@ -161,3 +171,27 @@ def test_upcoming():
     kinds = [e.kind for e in ups]
     assert (ADHAN, "asr") in [(e.kind, e.prayer) for e in ups]
     assert all(e.at > at(SAT, 13, 0) for e in ups)
+def test_post_adhkar_offset_and_off():
+    engine, _ = make_engine(post_adhkar_per={p: 15 for p in ADHAN_PRAYERS})
+    assert (POST_ADHKAR, "fajr") in tick_kinds(engine, at(SAT, 5, 15))
+    engine2, _ = make_engine(post_adhkar_per={p: 0 for p in ADHAN_PRAYERS})
+    assert tick_kinds(engine2, at(SAT, 5, 15)) == []
+
+
+def test_per_prayer_overrides():
+    # fajr: pre 30 / iqama 25 / post 10; everything else default
+    pre = {p: 5 for p in ADHAN_PRAYERS}
+    pre["fajr"] = 30
+    iq = {p: 10 for p in ADHAN_PRAYERS}
+    iq["fajr"] = 25
+    post = {p: 0 for p in ADHAN_PRAYERS}
+    post["fajr"] = 10
+    engine, _ = make_engine(pre_adhan_per=pre, iqama_per=iq, post_adhkar_per=post)
+    assert (PRE_ADHAN, "fajr") in tick_kinds(engine, at(SAT, 4, 30))
+    engine, _ = make_engine(pre_adhan_per=pre, iqama_per=iq, post_adhkar_per=post)
+    assert (IQAMA, "fajr") in tick_kinds(engine, at(SAT, 5, 25))
+    engine, _ = make_engine(pre_adhan_per=pre, iqama_per=iq, post_adhkar_per=post)
+    assert (POST_ADHKAR, "fajr") in tick_kinds(engine, at(SAT, 5, 10))
+    # other prayers keep their own offsets
+    engine, _ = make_engine(pre_adhan_per=pre, iqama_per=iq, post_adhkar_per=post)
+    assert (IQAMA, "dhuhr") in tick_kinds(engine, at(SAT, 12, 10))

@@ -95,3 +95,21 @@ def msg_pre_adhan(prayer_ar: str, minutes: int) -> str:
 MSG_KAHF = "تذكير: اليوم الجمعة، لا تنس قراءة سورة الكهف"
 MSG_ADHKAR_TOGGLED_ON = "تم تشغيل الأذكار"
 MSG_ADHKAR_TOGGLED_OFF = "تم إيقاف الأذكار"
+
+# v1.1: location picker + per-prayer alerts + post-prayer adhkar
+SET_COUNTRY = "الدولة"
+SET_DETECT = "اكتشاف الموقع تلقائيًا"
+MSG_DETECTED = "تم اكتشاف موقعك تلقائيًا. راجع الدولة والمدينة ثم احفظ."
+MSG_DETECT_FAILED = "تعذر اكتشاف الموقع تلقائيًا، اختر الدولة والمدينة يدويًا."
+HDR_PRAYER = "الصلاة"
+HDR_PRE = "تنبيه قبل الأذان (دقائق)"
+HDR_IQAMA = "الإقامة بعد (دقائق)"
+HDR_POST = "أذكار بعد الصلاة (دقائق)"
+SND_PER_PRAYER = "صوت الأذان لكل صلاة"
+OPT_DEFAULT = "(نفس الافتراضي)"
+OPT_NONE = "(لا شيء)"
+SND_ALL_PRAYERS = "كل الصلوات (الافتراضي)"
+MSG_LOCATION_SAVED = "تم حفظ الموقع"
+
+def msg_post_adhkar(prayer_ar: str) -> str:
+    return f"أذكار ما بعد صلاة {prayer_ar}"

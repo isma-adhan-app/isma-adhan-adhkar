@@ -21,11 +21,11 @@ import wx.adv
 from . import autostart
 from . import sounds as snd
 from . import strings as S
-from .cities import city_names
+from . import world
 from .config import ensure_dirs, load_settings, save_settings, sound_dirs
 from .hijri import hijri_label, weekday_label
-from .prayer_times import ARABIC_NAMES, PRAYERS, PrayerTimeCalculator
-from .scheduler import ADHAN, ADHKAR, IQAMA, KAHF, PRE_ADHAN, SchedulerEngine
+from .prayer_times import ADHAN_PRAYERS, ARABIC_NAMES, PRAYERS, PrayerTimeCalculator
+from .scheduler import ADHAN, ADHKAR, IQAMA, KAHF, POST_ADHKAR, PRE_ADHAN, SchedulerEngine
 
 PRE_ADHAN_CHOICES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
 ADHKAR_INTERVAL_CHOICES = [10, 15, 20, 30]
@@ -80,7 +80,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
         self._refresh_day()
-        if not self.settings.adhan_sound:
+        if not self.settings.adhan_sounds.get("all"):
             self.log(S.MSG_NO_ADHAN)
 
     # ------------------------------------------------------------------ UI
@@ -177,7 +177,8 @@ class MainFrame(wx.Frame):
         self.notebook.AddPage(page, S.TAB_HOME)
 
     def _build_settings_tab(self):
-        page = wx.Panel(self.notebook)
+        page = wx.ScrolledWindow(self.notebook)
+        page.SetScrollRate(0, 20)
         page.SetLayoutDirection(wx.Layout_RightToLeft)
         box = wx.BoxSizer(wx.VERTICAL)
         s = self.settings
@@ -188,21 +189,48 @@ class MainFrame(wx.Frame):
             row.Add(lbl, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
             row.Add(control, 1, wx.ALL | wx.EXPAND, 6)
             box.Add(row, 0, wx.EXPAND)
+            control.SetName(label_text)
             return control
 
-        self.city_choice = add_row(S.SET_CITY, wx.Choice(page, choices=city_names()))
-        names = city_names()
-        self.city_choice.SetSelection(names.index(s.city) if s.city in names else 0)
+        # --- location: country -> city, plus auto-detect
+        country_names = [d for _, d in world.countries()]
+        self._country_isos = [iso for iso, _ in world.countries()]
+        self.country_choice = add_row(S.SET_COUNTRY, wx.Choice(page, choices=country_names))
+        self.city_choice = add_row(S.SET_CITY, wx.Choice(page, choices=[]))
+        self._cities = []
+        self.country_choice.Bind(wx.EVT_CHOICE, lambda e: self._fill_cities())
+        self._select_country_by_display(s.country)
+        detect_btn = wx.Button(page, label=S.SET_DETECT)
+        detect_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_detect_location())
+        box.Add(detect_btn, 0, wx.ALL, 6)
 
-        self.pre_choice = add_row(
-            S.SET_PRE_ADHAN,
-            wx.Choice(page, choices=[_minutes_label(m) for m in PRE_ADHAN_CHOICES]),
-        )
-        self.pre_choice.SetSelection(
-            PRE_ADHAN_CHOICES.index(s.pre_adhan_minutes) if s.pre_adhan_minutes in PRE_ADHAN_CHOICES else 1
-        )
-
-        self.iqama_spin = add_row(S.SET_IQAMA, wx.SpinCtrl(page, min=0, max=60, initial=s.iqama_minutes))
+        # --- per-prayer alerts: pre-adhan / iqama / post-prayer adhkar
+        grid = wx.FlexGridSizer(rows=len(ADHAN_PRAYERS) + 1, cols=4, vgap=4, hgap=6)
+        for head in (S.HDR_PRAYER, S.HDR_PRE, S.HDR_IQAMA, S.HDR_POST):
+            grid.Add(wx.StaticText(page, label=head), 0, wx.ALL, 4)
+        self.pre_choices = {}
+        self.iqama_spins = {}
+        self.post_choices = {}
+        for prayer in ADHAN_PRAYERS:
+            ar = ARABIC_NAMES[prayer]
+            grid.Add(wx.StaticText(page, label=ar), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 4)
+            pre = wx.Choice(page, choices=[_minutes_label(m) for m in PRE_ADHAN_CHOICES])
+            pre.SetName(f"{S.HDR_PRE} - {ar}")
+            v = s.pre_adhan_for(prayer)
+            pre.SetSelection(PRE_ADHAN_CHOICES.index(v) if v in PRE_ADHAN_CHOICES else 1)
+            grid.Add(pre, 1, wx.ALL | wx.EXPAND, 4)
+            self.pre_choices[prayer] = pre
+            spin = wx.SpinCtrl(page, min=0, max=60, initial=s.iqama_for(prayer))
+            spin.SetName(f"{S.HDR_IQAMA} - {ar}")
+            grid.Add(spin, 1, wx.ALL | wx.EXPAND, 4)
+            self.iqama_spins[prayer] = spin
+            post = wx.Choice(page, choices=[_minutes_label(m) for m in PRE_ADHAN_CHOICES])
+            post.SetName(f"{S.HDR_POST} - {ar}")
+            v = s.post_adhkar_for(prayer)
+            post.SetSelection(PRE_ADHAN_CHOICES.index(v) if v in PRE_ADHAN_CHOICES else 0)
+            grid.Add(post, 1, wx.ALL | wx.EXPAND, 4)
+            self.post_choices[prayer] = post
+        box.Add(grid, 0, wx.EXPAND | wx.ALL, 4)
 
         self.adhkar_check = wx.CheckBox(page, label=S.SET_ADHKAR_ON)
         self.adhkar_check.SetValue(s.adhkar_enabled)
@@ -247,6 +275,43 @@ class MainFrame(wx.Frame):
         page.SetSizer(box)
         self.notebook.AddPage(page, S.TAB_SETTINGS)
 
+    def _select_country_by_display(self, display):
+        for i, (iso, disp) in enumerate(world.countries()):
+            if disp == display:
+                self.country_choice.SetSelection(i)
+                self._fill_cities()
+                return
+        if self.country_choice.GetCount():
+            self.country_choice.SetSelection(0)
+        self._fill_cities()
+
+    def _fill_cities(self):
+        sel = self.country_choice.GetSelection()
+        iso = self._country_isos[sel] if 0 <= sel < len(self._country_isos) else "EG"
+        self._cities = world.cities_of(iso)
+        self.city_choice.Set([world.city_display(c) for c in self._cities])
+        for i, c in enumerate(self._cities):
+            if world.city_display(c) == self.settings.city:
+                self.city_choice.SetSelection(i)
+                return
+        if self._cities:
+            self.city_choice.SetSelection(0)
+
+    def on_detect_location(self):
+        found = world.detect_location()
+        if not found:
+            self.log(S.MSG_DETECT_FAILED)
+            self.speak(S.MSG_DETECT_FAILED)
+            return
+        self._select_country_by_display(world.country_display(found["iso"]))
+        disp = world.city_display(found["city"])
+        for i, c in enumerate(self._cities):
+            if world.city_display(c) == disp:
+                self.city_choice.SetSelection(i)
+                break
+        self.log(S.MSG_DETECTED)
+        self.speak(S.MSG_DETECTED)
+
     def _build_sounds_tab(self):
         page = wx.Panel(self.notebook)
         page.SetLayoutDirection(wx.Layout_RightToLeft)
@@ -270,6 +335,19 @@ class MainFrame(wx.Frame):
 
         self.current_adhan_label = wx.StaticText(page, label="")
         box.Add(self.current_adhan_label, 0, wx.ALL, 8)
+
+        box.Add(wx.StaticText(page, label=S.SND_PER_PRAYER), 0, wx.LEFT | wx.TOP, 8)
+        self.adhan_assign = {}
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        for key, label in assign_rows:
+            arow = wx.BoxSizer(wx.HORIZONTAL)
+            arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
+            achoice = wx.Choice(page, choices=[])
+            achoice.SetName(f"{S.SND_PER_PRAYER} - {label}")
+            arow.Add(achoice, 1, wx.ALL | wx.EXPAND, 6)
+            box.Add(arow, 0, wx.EXPAND)
+            achoice.Bind(wx.EVT_CHOICE, lambda e, k=key: self.on_assign_adhan(k))
+            self.adhan_assign[key] = achoice
 
         box.Add(wx.StaticText(page, label=S.SND_ADHKAR_LIB), 0, wx.LEFT | wx.TOP, 8)
         self.adhkar_list = wx.ListBox(page, choices=[])
@@ -352,14 +430,15 @@ class MainFrame(wx.Frame):
     def handle_event(self, ev):
         ar = ARABIC_NAMES.get(ev.prayer or "", "")
         if ev.kind == PRE_ADHAN:
-            msg = S.msg_pre_adhan(ar, self.settings.pre_adhan_minutes)
+            msg = S.msg_pre_adhan(ar, self.settings.pre_adhan_for(ev.prayer))
             self._safe_play(snd.default_tone("pre_adhan"))
             self.notify(msg)
             self.speak(msg)
             self.log(msg)
         elif ev.kind == ADHAN:
             msg = S.msg_adhan_now(ar)
-            path = Path(self.settings.adhan_sound) if self.settings.adhan_sound else None
+            path_str = self.settings.adhan_sound_for(ev.prayer)
+            path = Path(path_str) if path_str else None
             if path and path.exists():
                 self._safe_play(path)
             else:
@@ -373,19 +452,29 @@ class MainFrame(wx.Frame):
             self.notify(msg)
             self.speak(msg)
             self.log(msg)
+        elif ev.kind == POST_ADHKAR:
+            msg = S.msg_post_adhkar(ar)
+            self.log(msg)
+            self.speak(msg)
+            self._play_next_adhkar_clip()
         elif ev.kind == ADHKAR:
-            clips = snd.list_sounds(self.dirs["adhkar"])
-            clip = self.adhkar_rotation.next(clips)
-            if clip:
-                self._safe_play(clip)
-                self.log(f"ذكر: {snd.display_name(clip)}")
-            else:
-                self.log("لا توجد مقاطع أذكار في المكتبة بعد. أضف مقاطع من تبويب الأصوات.")
+            self._play_next_adhkar_clip()
         elif ev.kind == KAHF:
             self._safe_play(snd.default_tone("kahf"))
             self.notify(S.MSG_KAHF)
             self.speak(S.MSG_KAHF)
             self.log(S.MSG_KAHF)
+
+    def on_assign_adhan(self, key):
+        choice = self.adhan_assign[key]
+        sel = choice.GetSelection()
+        if sel == 0:
+            self.settings.adhan_sounds.pop(key, None)
+        elif 1 <= sel <= len(self._adhan_files):
+            self.settings.adhan_sounds[key] = str(self._adhan_files[sel - 1])
+        save_settings(self.settings)
+        self.refresh_sound_lists()
+        self.log(S.MSG_ADHAN_SET)
 
     def _safe_play(self, path):
         try:
@@ -393,9 +482,20 @@ class MainFrame(wx.Frame):
         except Exception as exc:
             self.log(f"تعذر تشغيل الصوت: {Path(path).name}")
 
+    def _play_next_adhkar_clip(self):
+        clips = snd.all_adhkar(self.dirs["adhkar"])
+        labels = {str(p): label for p, label in clips}
+        clip = self.adhkar_rotation.next([p for p, _ in clips])
+        if clip:
+            self._safe_play(clip)
+            self.log(f"ذكر: {labels.get(str(clip), snd.display_name(clip))}")
+        else:
+            self.log("لا توجد مقاطع أذكار في المكتبة بعد. أضف مقاطع من تبويب الأصوات.")
+
     # --------------------------------------------------------------- actions
     def play_adhan_now(self):
-        path = Path(self.settings.adhan_sound) if self.settings.adhan_sound else None
+        path_str = self.settings.adhan_sounds.get("all", "")
+        path = Path(path_str) if path_str else None
         if path and path.exists():
             self._safe_play(path)
         else:
@@ -430,11 +530,19 @@ class MainFrame(wx.Frame):
 
     def apply_settings(self):
         s = self.settings
-        names = city_names()
+        ci = self.country_choice.GetSelection()
+        countries = world.countries()
+        if 0 <= ci < len(countries):
+            s.country = countries[ci][1]
         sel = self.city_choice.GetSelection()
-        s.city = names[sel] if 0 <= sel < len(names) else names[0]
-        s.pre_adhan_minutes = PRE_ADHAN_CHOICES[max(0, self.pre_choice.GetSelection())]
-        s.iqama_minutes = self.iqama_spin.GetValue()
+        if 0 <= sel < len(self._cities):
+            c = self._cities[sel]
+            s.city = world.city_display(c)
+            s.lat, s.lng, s.timezone_name = c["lat"], c["lng"], c["tz"]
+        for prayer in ADHAN_PRAYERS:
+            s.pre_adhan_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.pre_choices[prayer].GetSelection())]
+            s.iqama_per[prayer] = self.iqama_spins[prayer].GetValue()
+            s.post_adhkar_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.post_choices[prayer].GetSelection())]
         s.adhkar_enabled = self.adhkar_check.GetValue()
         s.adhkar_interval_minutes = ADHKAR_INTERVAL_CHOICES[
             max(0, self.adhkar_interval_choice.GetSelection())
@@ -466,11 +574,24 @@ class MainFrame(wx.Frame):
     def refresh_sound_lists(self):
         adhan_files = snd.list_sounds(self.dirs["adhan"])
         self._adhan_files = adhan_files
-        self.adhan_list.Set([snd.display_name(p) for p in adhan_files])
-        adhkar_files = snd.list_sounds(self.dirs["adhkar"])
-        self._adhkar_files = adhkar_files
-        self.adhkar_list.Set([snd.display_name(p) for p in adhkar_files])
-        current = Path(self.settings.adhan_sound).stem if self.settings.adhan_sound else S.OPT_OFF
+        names = [snd.display_name(p) for p in adhan_files]
+        self.adhan_list.Set(names)
+        for key, choice in getattr(self, "adhan_assign", {}).items():
+            default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
+            choice.Set([default_label] + names)
+            current = self.settings.adhan_sounds.get(key, "")
+            idx = 0
+            if current:
+                for i, p in enumerate(adhan_files):
+                    if str(p) == current:
+                        idx = i + 1
+                        break
+            choice.SetSelection(idx)
+        bundled = snd.bundled_adhkar()
+        user_files = snd.list_sounds(self.dirs["adhkar"])
+        self._adhkar_files = [p for p, _ in bundled] + user_files
+        self.adhkar_list.Set([label for _, label in bundled] + [snd.display_name(p) for p in user_files])
+        current = snd.display_name(self.settings.adhan_sounds.get("all")) if self.settings.adhan_sounds.get("all") else S.OPT_OFF
         self.current_adhan_label.SetLabel(f"{S.SET_ADHAN_SOUND}: {current}")
 
     def _add_files(self, directory):
@@ -499,7 +620,7 @@ class MainFrame(wx.Frame):
     def on_set_adhan(self, _event):
         sel = self.adhan_list.GetSelection()
         if 0 <= sel < len(self._adhan_files):
-            self.settings.adhan_sound = str(self._adhan_files[sel])
+            self.settings.adhan_sounds["all"] = str(self._adhan_files[sel])
             save_settings(self.settings)
             self.refresh_sound_lists()
             self.log(S.MSG_ADHAN_SET)

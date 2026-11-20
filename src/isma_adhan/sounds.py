@@ -48,6 +48,40 @@ def display_name(path: Path) -> str:
     return Path(path).stem
 
 
+def bundled_adhkar() -> list:
+    """Bundled dhikr clips shipped with the app: [(path, arabic_text)].
+
+    Generated at build time (eSpeak NG Arabic TTS); the mapping file records
+    the text of each clip so the UI/log can show what is playing.
+    """
+    import json
+
+    index = resource_path("assets", "sounds", "adhkar_bundled.json")
+    if not index.exists():
+        return []
+    try:
+        data = json.loads(index.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+    base = resource_path("assets", "sounds", "adhkar_bundled")
+    out = []
+    for name, text in data.items():
+        p = base / name
+        if p.exists():
+            out.append((p, text))
+    return out
+
+
+def all_adhkar(user_dir: Path) -> list:
+    """Merged adhkar rotation pool: bundled clips + the user's own clips.
+
+    Returns [(path, display_label)]; user clips show their file name.
+    """
+    out = [(p, text) for p, text in bundled_adhkar()]
+    out += [(p, display_name(p)) for p in list_sounds(user_dir)]
+    return out
+
+
 def add_sound(source: Path, directory: Path) -> Path:
     """Copy an audio file into a library folder; returns the new path."""
     source = Path(source)

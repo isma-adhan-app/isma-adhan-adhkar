@@ -16,6 +16,7 @@ PRE_ADHAN = "pre_adhan"
 ADHAN = "adhan"
 IQAMA = "iqama"
 ADHKAR = "adhkar"
+POST_ADHKAR = "post_adhkar"
 KAHF = "kahf"
 
 FRIDAY = 4  # datetime.weekday()
@@ -73,11 +74,16 @@ class SchedulerEngine:
         times = self.times_provider(day)
         for prayer in ADHAN_PRAYERS:
             t = times[prayer]
-            if s.pre_adhan_minutes > 0:
-                events.append(Event(PRE_ADHAN, t - timedelta(minutes=s.pre_adhan_minutes), prayer))
+            pre = s.pre_adhan_for(prayer)
+            if pre > 0:
+                events.append(Event(PRE_ADHAN, t - timedelta(minutes=pre), prayer))
             events.append(Event(ADHAN, t, prayer))
-            if s.iqama_minutes > 0:
-                events.append(Event(IQAMA, t + timedelta(minutes=s.iqama_minutes), prayer))
+            iqama = s.iqama_for(prayer)
+            if iqama > 0:
+                events.append(Event(IQAMA, t + timedelta(minutes=iqama), prayer))
+            post = s.post_adhkar_for(prayer)
+            if post > 0:
+                events.append(Event(POST_ADHKAR, t + timedelta(minutes=post), prayer))
         if s.kahf_enabled and day.weekday() == FRIDAY:
             at = datetime.combine(day, _parse_hhmm(s.kahf_time)).replace(tzinfo=tz)
             events.append(Event(KAHF, at))
@@ -136,7 +142,7 @@ class SchedulerEngine:
         """True if a prayer alert is within ``margin_minutes`` of ``at``."""
         margin = timedelta(minutes=margin_minutes)
         for ev in self.day_events(at.date(), at.tzinfo):
-            if ev.kind in (ADHAN, PRE_ADHAN, IQAMA) and abs(ev.at - at) <= margin:
+            if ev.kind in (ADHAN, PRE_ADHAN, IQAMA, POST_ADHKAR) and abs(ev.at - at) <= margin:
                 return True
         return False
 

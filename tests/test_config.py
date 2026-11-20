@@ -2,18 +2,42 @@ import json
 from pathlib import Path
 
 from isma_adhan.config import Settings, load_settings, save_settings, settings_path
+from isma_adhan.prayer_times import ADHAN_PRAYERS
 
 
 def test_defaults():
     s = Settings()
     assert s.city == "القاهرة"
+    assert s.country == "مصر"
     assert s.method == "egypt"
-    assert s.pre_adhan_minutes == 5
+    assert all(v == 5 for v in s.pre_adhan_per.values())
+    assert all(v == 10 for v in s.iqama_per.values())
+    assert all(v == 0 for v in s.post_adhkar_per.values())
     assert 0 <= s.volume <= 100
 
 
+def test_accessors_with_fallback():
+    s = Settings()
+    assert s.pre_adhan_for("fajr") == 5
+    assert s.iqama_for("isha") == 10
+    assert s.post_adhkar_for("dhuhr") == 0
+    s.pre_adhan_per = {"all": 7, "fajr": 15}
+    assert s.pre_adhan_for("fajr") == 15
+    assert s.pre_adhan_for("maghrib") == 7
+    assert s.adhan_sound_for("fajr") == ""
+    s.adhan_sounds = {"all": "/x/all.mp3", "fajr": "/x/fajr.mp3"}
+    assert s.adhan_sound_for("fajr") == "/x/fajr.mp3"
+    assert s.adhan_sound_for("asr") == "/x/all.mp3"
+
+
 def test_roundtrip(tmp_path):
-    s = Settings(city="أسوان", pre_adhan_minutes=15, volume=55, adhan_sound="/x/adhan.mp3")
+    s = Settings(
+        city="أسوان",
+        volume=55,
+        adhan_sounds={"all": "/x/adhan.mp3"},
+        pre_adhan_per={p: 15 for p in ADHAN_PRAYERS},
+        post_adhkar_per={p: 10 for p in ADHAN_PRAYERS},
+    )
     save_settings(s, base=tmp_path)
     loaded = load_settings(base=tmp_path)
     assert loaded == s
@@ -29,22 +53,49 @@ def test_corrupt_file_falls_back_to_defaults(tmp_path):
 def test_unknown_keys_ignored(tmp_path):
     settings_path(tmp_path).parent.mkdir(parents=True, exist_ok=True)
     settings_path(tmp_path).write_text(
-        json.dumps({"city": "الأقصر", "future_option": 1}), encoding="utf-8"
+        json.dumps({"country": "مصر", "city": "الأقصر", "future_option": 1}), encoding="utf-8"
     )
     s = load_settings(base=tmp_path)
     assert s.city == "الأقصر"
     assert not hasattr(s, "future_option")
 
 
-def test_lat_lng_from_city():
-    s = Settings(city="الإسكندرية")
-    lat, lng = s.lat_lng()
-    assert abs(lat - 31.2001) < 0.01
-    assert abs(lng - 29.9187) < 0.01
+def test_migration_from_v1_0(tmp_path):
+    old = {
+        "city": "الإسكندرية",
+        "pre_adhan_minutes": 15,
+        "iqama_minutes": 20,
+        "adhan_sound": "/x/adhan.mp3",
+        "use_custom_coords": False,
+        "volume": 70,
+    }
+    settings_path(tmp_path).parent.mkdir(parents=True, exist_ok=True)
+    settings_path(tmp_path).write_text(json.dumps(old), encoding="utf-8")
+    s = load_settings(base=tmp_path)
+    assert all(v == 15 for v in s.pre_adhan_per.values())
+    assert all(v == 20 for v in s.iqama_per.values())
+    assert s.adhan_sounds.get("all") == "/x/adhan.mp3"
+    assert s.volume == 70
+    # Alexandria resolves to its coordinates through the built-in city list
+    assert abs(s.lat - 31.2001) < 0.01
+    assert abs(s.lng - 29.9187) < 0.01
+    assert s.country == "مصر"
 
 
-def test_lat_lng_unknown_city_falls_back_to_cairo():
-    s = Settings(city="مدينة غير موجودة")
-    lat, lng = s.lat_lng()
-    assert abs(lat - 30.0444) < 0.01
-    assert abs(lng - 31.2357) < 0.01
+def test_migration_custom_coords_win(tmp_path):
+    old = {
+        "city": "القاهرة",
+        "use_custom_coords": True,
+        "custom_lat": 25.6872,
+        "custom_lng": 32.6396,
+    }
+    settings_path(tmp_path).parent.mkdir(parents=True, exist_ok=True)
+    settings_path(tmp_path).write_text(json.dumps(old), encoding="utf-8")
+    s = load_settings(base=tmp_path)
+    assert abs(s.lat - 25.6872) < 0.001
+    assert abs(s.lng - 32.6396) < 0.001
+
+
+def test_lat_lng_accessor():
+    s = Settings(lat=31.2001, lng=29.9187)
+    assert s.lat_lng() == (31.2001, 29.9187)
