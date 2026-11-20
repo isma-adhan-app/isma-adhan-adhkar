@@ -1,7 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller build spec for اسمع أذان وأذكار (IsmaAdhan).
+# ONEDIR build (not onefile): the onefile self-extracting bootloader is what
+# antivirus engines most often false-flag; onedir ships a plain exe + DLLs.
 # Build on Windows with:  pyinstaller IsmaAdhan.spec
-# Output: dist/IsmaAdhan.exe  (single file, no console window)
+# Output: dist/IsmaAdhan/IsmaAdhan.exe (+ support files, packaged into the
+# Inno Setup installer by build/installer.iss)
 
 from PyInstaller.utils.hooks import collect_all
 
@@ -31,9 +34,8 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name="IsmaAdhan",
     debug=False,
     bootloader_ignore_signals=False,
@@ -41,4 +43,12 @@ exe = EXE(
     upx=False,
     console=False,
     icon="assets/icon.ico",
+)
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.datas,
+    strip=False,
+    upx=False,
+    name="IsmaAdhan",
 )

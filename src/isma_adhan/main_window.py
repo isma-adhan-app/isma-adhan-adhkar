@@ -512,6 +512,22 @@ class MainFrame(wx.Frame):
             self._safe_play(files[sel])
 
     # ---------------------------------------------------------------- close
+    def announce_startup(self):
+        """Spoken confirmation that the app started - key feedback for a blind
+        user who cannot otherwise tell the window opened. Independent of the
+        speak_prayer_name setting so first run always says something."""
+        try:
+            now = self.now()
+            name, at = self.calc.next_prayer(now)
+            text = (
+                f"برنامج {S.APP_NAME} يعمل الآن. "
+                f"الصلاة القادمة صلاة {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}."
+            )
+        except Exception:
+            text = f"برنامج {S.APP_NAME} يعمل الآن."
+        self.speaker.speak(text)
+        self.log(text)
+
     def show_window(self):
         self.Show()
         self.Iconize(False)

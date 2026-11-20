@@ -27,36 +27,48 @@ jobs:
           SDL_VIDEODRIVER: dummy
         run: python -m pytest tests/ -q
 
-      - name: Build exe
+      - name: Build onedir app
         run: pyinstaller IsmaAdhan.spec
 
       - name: Packaged headless self-test
         env:
           SDL_AUDIODRIVER: dummy
-        run: .\dist\IsmaAdhan.exe --self-test
+        run: .\dist\IsmaAdhan\IsmaAdhan.exe --self-test
 
       - name: GUI launch smoke test (informational)
         continue-on-error: true
         shell: pwsh
         run: |
-          $p = Start-Process .\dist\IsmaAdhan.exe -PassThru
+          $p = Start-Process .\dist\IsmaAdhan\IsmaAdhan.exe -PassThru
           Start-Sleep -Seconds 20
           if ($p.HasExited) { Write-Warning "GUI exited early (code $($p.ExitCode)) - expected in session 0"; exit 1 }
           Write-Host "GUI process alive after 20s, pid $($p.Id)"
           Stop-Process -Id $p.Id -Force
 
-      - name: Upload exe artifact
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        run: iscc build\installer.iss
+
+      - name: Zip portable onedir (fallback)
+        shell: pwsh
+        run: Compress-Archive -Path dist\IsmaAdhan -DestinationPath dist\IsmaAdhan-portable.zip
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: IsmaAdhan-exe
-          path: dist/IsmaAdhan.exe
+          name: IsmaAdhan-installer
+          path: |
+            dist/installer/IsmaAdhan-Setup.exe
+            dist/IsmaAdhan-portable.zip
           retention-days: 30
 
-      - name: Publish release with exe
+      - name: Publish release
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "v0.1.0-build$env:GITHUB_RUN_NUMBER"
-          gh release create $tag dist/IsmaAdhan.exe --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. Self-test and unit tests passed." --latest
+          $tag = "v0.1.1-build$env:GITHUB_RUN_NUMBER"
+          gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside." --latest
