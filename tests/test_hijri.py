@@ -24,3 +24,10 @@ def test_labels():
     label = hijri_label(d)
     assert "1448" in label
     assert label.endswith("هـ")
+
+
+def test_gregorian_label_arabic():
+    from isma_adhan.hijri import gregorian_label
+
+    assert gregorian_label(date(2026, 11, 21)) == "21 نوفمبر 2026 م"
+    assert gregorian_label(date(2026, 1, 1)) == "1 يناير 2026 م"

@@ -24,6 +24,21 @@ HIJRI_MONTHS_AR = [
 
 WEEKDAYS_AR = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 
+GREGORIAN_MONTHS_AR = [
+    "يناير",
+    "فبراير",
+    "مارس",
+    "أبريل",
+    "مايو",
+    "يونيو",
+    "يوليو",
+    "أغسطس",
+    "سبتمبر",
+    "أكتوبر",
+    "نوفمبر",
+    "ديسمبر",
+]
+
 
 def _jd(y: int, m: int, d: int) -> int:
     """Integer Julian day for a Gregorian date."""
@@ -56,3 +71,9 @@ def hijri_label(day: date) -> str:
 
 def weekday_label(day: date) -> str:
     return WEEKDAYS_AR[day.weekday()]
+
+
+def gregorian_label(day: date) -> str:
+    """Gregorian date in Arabic words, e.g. '21 نوفمبر 2026 م' - the form a
+    screen reader speaks naturally, instead of digits and dashes."""
+    return f"{day.day} {GREGORIAN_MONTHS_AR[day.month - 1]} {day.year} م"

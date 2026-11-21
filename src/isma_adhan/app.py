@@ -4,8 +4,9 @@ Startup order is defensive: every risky step is wrapped and milestones are
 appended to app.log so a machine where "nothing happens" still tells us, via
 the log, exactly where startup stopped. The main window is ALWAYS shown and
 raised on a manual launch (only the autostart entry passes --minimized), and
-the first audible feedback is a guaranteed Windows chime, then the spoken
-announcement once the event loop is running.
+the first audible feedback is the bundled Bismillah (falling back to a
+guaranteed Windows chime), then the spoken announcement once the event loop
+is running.
 """
 from __future__ import annotations
 
@@ -63,7 +64,17 @@ def _startup_chime() -> None:
 def _after_window_shown(frame) -> None:
     """Runs once the event loop is live and the window is on screen."""
     bootstrap.window_shown()
-    _startup_chime()
+    # Bismillah before anything else (his explicit request); the chime is the
+    # fallback when the clip cannot play
+    bismillah_secs = 0.0
+    try:
+        bismillah_secs = frame.play_bismillah()
+    except Exception as exc:
+        _log(f"startup: bismillah failed: {exc!r}")
+    if bismillah_secs > 0:
+        _log("startup: bismillah playing")
+    else:
+        _startup_chime()
     if bootstrap.previous_run_crashed():
         msg = "آخر محاولة تشغيل توقفت قبل اكتمال فتح البرنامج. التفاصيل محفوظة في ملف app.log."
         frame.log(msg)
@@ -75,7 +86,11 @@ def _after_window_shown(frame) -> None:
         frame.log(msg)
         _log(f"startup: audio unavailable: {frame.player.reason}")
     try:
-        frame.announce_startup()
+        if bismillah_secs > 0:
+            # let the Bismillah finish before the spoken announcement starts
+            wx.CallLater(int((bismillah_secs + 0.8) * 1000), frame.announce_startup)
+        else:
+            frame.announce_startup()
         _log("startup: announcement queued")
     except Exception as exc:
         _log(f"startup: announcement failed: {exc!r}")

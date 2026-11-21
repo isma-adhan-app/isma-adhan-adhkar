@@ -13,6 +13,7 @@ Usage:
 Outputs:
     assets/sounds/adhkar_bundled/NN.wav    one clip per text
     assets/sounds/adhkar_bundled.json      {"NN.wav": arabic_text}
+    assets/sounds/bismillah.wav            startup Bismillah clip
 """
 from __future__ import annotations
 
@@ -30,6 +31,9 @@ INDEX_FILE = ROOT / "assets" / "sounds" / "adhkar_bundled.json"
 
 VOICE = "ar"
 RATE = "130"  # words per minute: slow enough to follow along
+
+BISMILLAH = "بسم الله الرحمن الرحيم"
+BISMILLAH_FILE = ROOT / "assets" / "sounds" / "bismillah.wav"
 
 
 def find_espeak() -> str:
@@ -78,6 +82,13 @@ def main() -> int:
     INDEX_FILE.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"\n{len(index)} clips, {total:.0f}s total -> {OUT_DIR}")
     print(f"index -> {INDEX_FILE}")
+
+    # startup Bismillah (played on launch before anything else)
+    subprocess.run(
+        [espeak, "-v", VOICE, "-s", RATE, "-w", str(BISMILLAH_FILE), BISMILLAH],
+        check=True,
+    )
+    print(f"bismillah: {wav_seconds(BISMILLAH_FILE):.1f}s -> {BISMILLAH_FILE}")
     return 0
 
 

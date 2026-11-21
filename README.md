@@ -25,7 +25,11 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
   with quiet hours (default 23:00-05:00, toggleable)
 - Friday reminder for Surat Al-Kahf
 - system tray presence, optional autostart with Windows
-- Hijri date display (astronomical approximation, may differ by a day)
+- startup Bismillah: بسم الله الرحمن الرحيم plays on launch before any other
+  sound (bundled clip, generated with the same TTS pipeline)
+- Hijri + Gregorian date display in Arabic words (screen-reader friendly
+  read-only field); Hijri uses the standard tabular (Kuwaiti) conversion and
+  may differ by +/-1 day from moon-sighting announcements
 - upgrading from v1.0 keeps all settings (the settings file migrates itself)
 
 ## Repository layout
@@ -93,7 +97,8 @@ Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 
 ## Bundled audio licensing
 
-The 14 clips in `assets/sounds/adhkar_bundled/` are generated with
+The 14 clips in `assets/sounds/adhkar_bundled/` and the startup
+`assets/sounds/bismillah.wav` are generated with
 eSpeak NG (`tools/make_adhkar.py`, texts in `tools/adhkar_texts.json`).
 eSpeak NG is GPL as a *program*; its license places no restrictions on audio
 output generated with it, so these generated clips may be redistributed with

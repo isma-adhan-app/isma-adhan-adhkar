@@ -23,7 +23,7 @@ from . import sounds as snd
 from . import strings as S
 from . import world
 from .config import ensure_dirs, load_settings, save_settings, sound_dirs
-from .hijri import hijri_label, weekday_label
+from .hijri import gregorian_label, hijri_label, weekday_label
 from .prayer_times import ADHAN_PRAYERS, ARABIC_NAMES, PRAYERS, PrayerTimeCalculator
 from .scheduler import ADHAN, ADHKAR, IQAMA, KAHF, POST_ADHKAR, PRE_ADHAN, SchedulerEngine
 
@@ -145,9 +145,14 @@ class MainFrame(wx.Frame):
 
         big = wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
 
-        self.date_label = wx.StaticText(page, label="")
+        # read-only text control (not a StaticText) so the date is in the tab
+        # order and NVDA announces it like any other field
+        self.date_label = wx.TextCtrl(
+            page, style=wx.TE_READONLY | wx.TE_CENTER | wx.BORDER_SIMPLE
+        )
+        self.date_label.SetName("التاريخ الميلادي والهجري")
         self.date_label.SetFont(big)
-        box.Add(self.date_label, 0, wx.ALL, 8)
+        box.Add(self.date_label, 0, wx.ALL | wx.EXPAND, 8)
 
         self.next_label = wx.StaticText(page, label="")
         self.next_label.SetFont(big)
@@ -404,8 +409,8 @@ class MainFrame(wx.Frame):
         now = self.now()
         self._current_day = now.date()
         d = now.date()
-        self.date_label.SetLabel(
-            f"{weekday_label(d)}، {d.strftime('%Y-%m-%d')} م  /  {hijri_label(d)}"
+        self.date_label.SetValue(
+            f"{weekday_label(d)}، {gregorian_label(d)}  /  {hijri_label(d)}"
         )
         day_times = self.calc.for_date(d)
         self._day_times = day_times
@@ -633,6 +638,27 @@ class MainFrame(wx.Frame):
             self._safe_play(files[sel])
 
     # ---------------------------------------------------------------- close
+    def play_bismillah(self) -> float:
+        """Play the bundled Bismillah (first sound at launch, before the chime
+        and the spoken announcement). Returns its length in seconds, or 0 when
+        it cannot play so the caller falls back to the chime."""
+        path = snd.resource_path("assets", "sounds", "bismillah.wav")
+        if not path.exists():
+            return 0.0
+        try:
+            import wave
+
+            with wave.open(str(path), "rb") as w:
+                secs = w.getnframes() / w.getframerate()
+        except Exception:
+            secs = 3.5
+        try:
+            self.player.play(path)
+            self.log("بسم الله الرحمن الرحيم")
+            return secs
+        except Exception:
+            return 0.0
+
     def announce_startup(self):
         """Spoken confirmation that the app started - key feedback for a blind
         user who cannot otherwise tell the window opened. Independent of the

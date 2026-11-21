@@ -5,7 +5,7 @@
 
 #define AppName "Isma Adhan wa Adhkar"
 #define AppNameAr "اسمع أذان وأذكار"
-#define AppVersion "1.1.0"
+#define AppVersion "1.2.0"
 #define AppExe "IsmaAdhan.exe"
 
 [Setup]

@@ -28,6 +28,8 @@ def run_self_test() -> int:
             p = default_tone(kind)
             assert p.exists(), f"missing {p}"
         assert resource_path("assets", "icon.ico").exists(), "missing icon"
+        bismillah = resource_path("assets", "sounds", "bismillah.wav")
+        assert bismillah.exists() and bismillah.stat().st_size > 2000, "missing bismillah clip"
 
     @check("bundled-adhkar")
     def _():
