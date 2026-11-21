@@ -186,3 +186,22 @@ this generated clip may be redistributed with the app.
 Location data: GeoNames (cities15000, countryInfo - CC-BY 4.0,
 geonames.org) and the CLDR Windows-zones mapping (unicode.org license).
 Regenerate with `tools/build_world.py`.
+
+## Code signing policy
+
+Free code signing provided by [SignPath.io](https://signpath.io), certificate
+by SignPath Foundation.
+
+Team roles:
+
+- Committers and reviewers: [isma-adhan-app organization members](https://github.com/orgs/isma-adhan-app/people)
+- Approvers: [isma-adhan-app organization owners](https://github.com/orgs/isma-adhan-app/people?query=role%3Aowner)
+
+Every signed release is built by GitHub Actions from this repository and is
+approved for signing by a maintainer before the signature is applied.
+
+Privacy policy: this program will not transfer any information to other
+networked systems unless specifically requested by the user or the person
+installing or operating it. (The NVDA Controller Client bundled under
+`assets/nvda/` communicates only with the NVDA instance running on the same
+machine; see its own license and privacy notes at nvaccess.org.)
