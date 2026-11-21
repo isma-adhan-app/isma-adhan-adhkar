@@ -118,3 +118,13 @@ def test_resolve_adhan():
     assert adhan_display(ADHAN_RANDOM_TOKEN) == "عشوائي"
     assert adhan_display("bundled:minshawi") == "محمد صديق المنشاوي"
     assert adhan_display("/x/y/my adhan.mp3") == "my adhan"
+
+
+def test_resolve_adhan_random_includes_user_files(tmp_path):
+    from isma_adhan.sounds import ADHAN_RANDOM_TOKEN, resolve_adhan
+
+    own = tmp_path / "my adhan.mp3"
+    own.write_bytes(b"x" * 1000)
+    picks = {resolve_adhan(ADHAN_RANDOM_TOKEN, tmp_path).name for _ in range(80)}
+    assert "my adhan.mp3" in picks
+    assert len(picks) > 1

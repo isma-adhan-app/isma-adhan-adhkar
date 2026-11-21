@@ -454,7 +454,7 @@ class MainFrame(wx.Frame):
             self.log(msg)
         elif ev.kind == ADHAN:
             msg = S.msg_adhan_now(ar)
-            path = snd.resolve_adhan(self.settings.adhan_sound_for(ev.prayer))
+            path = snd.resolve_adhan(self.settings.adhan_sound_for(ev.prayer), self.dirs["adhan"])
             if path is not None:
                 self._safe_play(path)
             else:
@@ -512,7 +512,7 @@ class MainFrame(wx.Frame):
 
     # --------------------------------------------------------------- actions
     def play_adhan_now(self):
-        path = snd.resolve_adhan(self.settings.adhan_sounds.get("all", ""))
+        path = snd.resolve_adhan(self.settings.adhan_sounds.get("all", ""), self.dirs["adhan"])
         if path is not None:
             self._safe_play(path)
         else:
@@ -658,7 +658,7 @@ class MainFrame(wx.Frame):
         sel = listbox.GetSelection()
         files = self._adhan_files if directory == self.dirs["adhan"] else self._adhkar_files
         if directory == self.dirs["adhan"] and sel == 0:
-            path = snd.resolve_adhan(snd.ADHAN_RANDOM_TOKEN)
+            path = snd.resolve_adhan(snd.ADHAN_RANDOM_TOKEN, self.dirs["adhan"])
             if path is not None:
                 self._safe_play(path)
         elif directory == self.dirs["adhan"] and 1 <= sel <= len(files):

@@ -23,8 +23,9 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
   still add their own clips on top
 - bundled adhan recordings by famous Egyptian muezzins - الحصري /
   المنشاوي / مصطفى إسماعيل / محمد رفعت - selectable in the الأصوات tab,
-  plus an عشوائي option (a different muezzin every prayer); the user can
-  still add their own adhan files on top
+  plus an عشوائي option (a different muezzin every prayer, picked from the
+  bundled clips AND the user's own adhan folder); the user can still add
+  their own adhan files on top
 - audio adhkar clips played in random order every 10/15/20/30 minutes,
   with quiet hours (default 23:00-05:00, toggleable)
 - Friday reminder for Surat Al-Kahf

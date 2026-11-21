@@ -165,18 +165,21 @@ def bundled_adhan() -> list:
     return out
 
 
-def resolve_adhan(value: "str | None") -> "Path | None":
+def resolve_adhan(value: "str | None", user_dir: "Path | None" = None) -> "Path | None":
     """Resolve a stored adhan_sounds entry to a playable path.
 
     Empty/None -> the default bundled muezzin; 'bundled:random' -> a random
-    bundled muezzin on every call; 'bundled:<key>' -> that muezzin; anything
-    else is a user file path and is returned only when the file exists.
+    clip from the bundled muezzins AND the user's own adhan folder (a new
+    pick on every call); 'bundled:<key>' -> that muezzin; anything else is a
+    user file path and is returned only when the file exists.
     """
     if not value:
         return adhan_voice_path(ADHAN_DEFAULT_VOICE)
     if value == ADHAN_RANDOM_TOKEN:
-        keys = [k for k, *_ in ADHAN_VOICES if adhan_voice_path(k) is not None]
-        return adhan_voice_path(random.choice(keys)) if keys else None
+        pool = [p for p, _ in bundled_adhan()]
+        if user_dir is not None:
+            pool += list_sounds(Path(user_dir))
+        return random.choice(pool) if pool else None
     if value.startswith(ADHAN_BUNDLED_PREFIX):
         return adhan_voice_path(value[len(ADHAN_BUNDLED_PREFIX):])
     p = Path(value)
