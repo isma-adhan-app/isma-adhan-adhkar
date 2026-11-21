@@ -112,3 +112,31 @@ def test_date_tools_convert():
     assert "1447 هـ يوافق" in out and "م." in out
     assert convert_date_text("blah") == BAD_DATE_MSG
     assert convert_date_text("32/13/2026") == BAD_DATE_MSG
+
+
+def test_alert_sound_settings_roundtrip_and_fallback(tmp_path):
+    from isma_adhan.config import Settings, load_settings, save_settings
+
+    s = Settings()
+    # defaults: empty dicts -> empty entry -> the built-in default tone
+    assert s.pre_adhan_sound_for("dhuhr") == ""
+    assert s.iqama_sound_for("fajr") == ""
+    s.pre_adhan_sounds = {"all": "alerts:random", "dhuhr": "/x/اقتربت صلاة الظهر.mp3"}
+    s.iqama_sounds = {"maghrib": "alerts:iqama_low"}
+    save_settings(s, base=tmp_path)
+    loaded = load_settings(base=tmp_path)
+    assert loaded.pre_adhan_sound_for("dhuhr") == "/x/اقتربت صلاة الظهر.mp3"
+    assert loaded.pre_adhan_sound_for("fajr") == "alerts:random"  # falls back to "all"
+    assert loaded.iqama_sound_for("maghrib") == "alerts:iqama_low"
+    assert loaded.iqama_sound_for("dhuhr") == ""  # no "all", no prayer entry
+
+
+def test_sound_dirs_include_alert_folders(tmp_path):
+    from isma_adhan.config import ensure_dirs, sound_dirs
+
+    dirs = sound_dirs(tmp_path)
+    assert dirs["pre_adhan"].name == "pre_adhan"
+    assert dirs["iqama"].name == "iqama"
+    ensure_dirs(tmp_path)
+    for d in dirs.values():
+        assert d.is_dir()

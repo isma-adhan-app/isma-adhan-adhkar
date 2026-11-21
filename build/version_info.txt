@@ -4,8 +4,8 @@
 # heuristics than metadata-less ones, and the fields show up in AV prompts.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 6, 1, 0),
-    prodvers=(1, 6, 1, 0),
+    filevers=(1, 7, 0, 0),
+    prodvers=(1, 7, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -19,12 +19,12 @@ VSVersionInfo(
         '040904B0',
         [StringStruct('CompanyName', 'IsmaAdhan'),
          StringStruct('FileDescription', 'Isma Adhan wa Adhkar - offline prayer times, adhan and adhkar'),
-         StringStruct('FileVersion', '1.6.1.0'),
+         StringStruct('FileVersion', '1.7.0.0'),
          StringStruct('InternalName', 'IsmaAdhan'),
          StringStruct('LegalCopyright', 'Open source, see repository README'),
          StringStruct('OriginalFilename', 'IsmaAdhan.exe'),
          StringStruct('ProductName', 'Isma Adhan wa Adhkar'),
-         StringStruct('ProductVersion', '1.6.1.0')])
+         StringStruct('ProductVersion', '1.7.0.0')])
     ]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

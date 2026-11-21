@@ -128,3 +128,64 @@ def test_resolve_adhan_random_includes_user_files(tmp_path):
     picks = {resolve_adhan(ADHAN_RANDOM_TOKEN, tmp_path).name for _ in range(80)}
     assert "my adhan.mp3" in picks
     assert len(picks) > 1
+
+
+def test_resolve_alert_defaults_match_pre17_behavior():
+    from isma_adhan.sounds import ALERT_KINDS, resolve_alert
+
+    assert set(ALERT_KINDS) == {"pre_adhan", "iqama"}
+    assert resolve_alert("pre_adhan", "").name == "soft_chime.wav"
+    assert resolve_alert("iqama", "").name == "iqama_tone.wav"
+    assert resolve_alert("pre_adhan", None).name == "soft_chime.wav"
+
+
+def test_resolve_alert_bundled_keys():
+    from isma_adhan.sounds import ALERT_BUNDLED, resolve_alert
+
+    for kind, entries in ALERT_BUNDLED.items():
+        for key, _name, filename in entries:
+            p = resolve_alert(kind, f"alerts:{key}")
+            assert p is not None and p.name == filename, (kind, key)
+            assert p.exists(), f"generated tone missing: {p}"
+
+
+def test_resolve_alert_random_covers_bundled():
+    from isma_adhan.sounds import ALERT_BUNDLED, ALERT_RANDOM_TOKEN, resolve_alert
+
+    for kind, entries in ALERT_BUNDLED.items():
+        names = {resolve_alert(kind, ALERT_RANDOM_TOKEN).name for _ in range(120)}
+        assert names == {f for *_x, f in entries}, (kind, names)
+
+
+def test_resolve_alert_random_includes_user_files(tmp_path):
+    from isma_adhan.sounds import ALERT_RANDOM_TOKEN, resolve_alert
+
+    own = tmp_path / "اقتربت صلاة الظهر.mp3"
+    own.write_bytes(b"x" * 1000)
+    picks = {resolve_alert("pre_adhan", ALERT_RANDOM_TOKEN, tmp_path).name for _ in range(150)}
+    assert own.name in picks
+    assert len(picks) > 1
+
+
+def test_resolve_alert_missing_user_file_returns_none():
+    from isma_adhan.sounds import resolve_alert
+
+    assert resolve_alert("iqama", "/nonexistent/my iqama.mp3") is None
+
+
+def test_resolve_alert_user_file(tmp_path):
+    from isma_adhan.sounds import resolve_alert
+
+    own = tmp_path / "tone.wav"
+    own.write_bytes(b"RIFFfake")
+    assert resolve_alert("pre_adhan", str(own), tmp_path) == own
+
+
+def test_alert_display():
+    from isma_adhan.sounds import ALERT_RANDOM_TOKEN, alert_display
+
+    assert alert_display("pre_adhan", "") == "جرس هادئ"
+    assert alert_display("iqama", "") == "تنبيه قصير"
+    assert alert_display("pre_adhan", ALERT_RANDOM_TOKEN) == "عشوائي"
+    assert alert_display("iqama", "alerts:iqama_low") == "نغمة منخفضة"
+    assert alert_display("pre_adhan", "/x/y/my reminder.mp3") == "my reminder"

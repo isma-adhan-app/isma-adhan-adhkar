@@ -35,6 +35,12 @@ def run_self_test() -> int:
         for key, *_ in BISMILLAH_VOICES:
             assert bismillah_path(key) is not None, f"missing bismillah clip: {key}"
 
+        from .sounds import ALERT_BUNDLED, alert_clip_path
+
+        for kind, entries in ALERT_BUNDLED.items():
+            for key, _name, _f in entries:
+                assert alert_clip_path(kind, key) is not None, f"missing alert clip: {kind}/{key}"
+
     @check("bundled-adhkar")
     def _():
         from .sounds import bundled_adhkar

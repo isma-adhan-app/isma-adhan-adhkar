@@ -131,3 +131,16 @@ OPT_RANDOM = "عشوائي"
 
 def msg_post_adhkar(prayer_ar: str) -> str:
     return f"أذكار ما بعد صلاة {prayer_ar}"
+
+# v1.7: custom alert sounds (pre-adhan reminder + iqama), per prayer
+SND_ALERT_LIB = {
+    "pre_adhan": "مكتبة أصوات التنبيه قبل الأذان",
+    "iqama": "مكتبة أصوات الإقامة",
+}
+SND_ALERT_PER_PRAYER = {
+    "pre_adhan": "صوت التنبيه قبل الأذان لكل صلاة",
+    "iqama": "صوت الإقامة لكل صلاة",
+}
+BTN_ADD_ALERT = "إضافة صوت تنبيه"
+OPT_RANDOM_ALERT = "عشوائي - صوت مختلف كل مرة (الأصوات المدمجة وملفاتي)"
+MSG_ALERT_SET = "تم تعيين صوت التنبيه"

@@ -205,3 +205,16 @@ networked systems unless specifically requested by the user or the person
 installing or operating it. (The NVDA Controller Client bundled under
 `assets/nvda/` communicates only with the NVDA instance running on the same
 machine; see its own license and privacy notes at nvaccess.org.)
+
+## Custom alert sounds (v1.7)
+
+The pre-adhan reminder and the iqama alert have the same sound-picker design
+as the adhan itself: each can be set per prayer (or once for all prayers) to
+a bundled tone, to one of your own audio files, or to "random" (a different
+pick each time from the bundled tones AND your own files). Your own files go
+in the per-kind library folders (`%APPDATA%\IsmaAdhan\sounds\pre_adhan` and
+`...\iqama`, or use the "إضافة صوت تنبيه" button in the sounds tab) and are
+plain mp3/wav/ogg - e.g. your own recorded "اقتربت صلاة الظهر". The bundled
+tones are generated locally by `tools/make_tones.py` (our own waveforms, no
+licensing constraints). With nothing chosen, the behavior is unchanged from
+v1.6: the soft chime for the pre-adhan reminder and the short beep for iqama.

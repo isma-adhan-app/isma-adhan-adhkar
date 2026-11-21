@@ -386,6 +386,12 @@ class MainFrame(wx.Frame):
             achoice.Bind(wx.EVT_CHOICE, lambda e, k=key: self.on_assign_adhan(k))
             self.adhan_assign[key] = achoice
 
+        # v1.7: custom alert sounds (pre-adhan reminder + iqama), per prayer,
+        # same shape as the adhan section above
+        self._alert_ui = {}
+        self._build_alert_section(page, box, "pre_adhan")
+        self._build_alert_section(page, box, "iqama")
+
         box.Add(wx.StaticText(page, label=S.SND_ADHKAR_LIB), 0, wx.LEFT | wx.TOP, 8)
         self.adhkar_list = wx.ListBox(page, choices=[])
         box.Add(self.adhkar_list, 1, wx.EXPAND | wx.ALL, 8)
@@ -402,6 +408,93 @@ class MainFrame(wx.Frame):
         page.SetSizer(box)
         self.notebook.AddPage(page, S.TAB_SOUNDS)
         self.refresh_sound_lists()
+
+    def _build_alert_section(self, page, box, kind):
+        """One alert-sound section of the sounds tab (v1.7): library list
+        (bundled tones + the user's own files), add/preview/stop buttons,
+        and per-prayer assignment - the same shape as the adhan section."""
+        box.Add(wx.StaticText(page, label=S.SND_ALERT_LIB[kind]), 0, wx.LEFT | wx.TOP, 8)
+        lst = wx.ListBox(page, choices=[])
+        lst.SetName(S.SND_ALERT_LIB[kind])
+        box.Add(lst, 1, wx.EXPAND | wx.ALL, 8)
+
+        row = wx.BoxSizer(wx.HORIZONTAL)
+        add_btn = wx.Button(page, label=S.BTN_ADD_ALERT)
+        add_btn.Bind(wx.EVT_BUTTON, lambda e, k=kind: self._add_files(self.dirs[k]))
+        prev_btn = wx.Button(page, label=S.BTN_PREVIEW)
+        prev_btn.Bind(wx.EVT_BUTTON, lambda e, k=kind: self._preview_alert(k))
+        stop_btn = wx.Button(page, label=S.BTN_STOP)
+        stop_btn.Bind(wx.EVT_BUTTON, lambda e: self.stop_audio())
+        for b in (add_btn, prev_btn, stop_btn):
+            row.Add(b, 0, wx.ALL, 4)
+        box.Add(row, 0)
+
+        box.Add(wx.StaticText(page, label=S.SND_ALERT_PER_PRAYER[kind]), 0, wx.LEFT | wx.TOP, 8)
+        assign = {}
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        for key, label in assign_rows:
+            arow = wx.BoxSizer(wx.HORIZONTAL)
+            arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
+            achoice = wx.Choice(page, choices=[])
+            achoice.SetName(f"{S.SND_ALERT_PER_PRAYER[kind]} - {label}")
+            arow.Add(achoice, 1, wx.ALL | wx.EXPAND, 6)
+            box.Add(arow, 0, wx.EXPAND)
+            achoice.Bind(wx.EVT_CHOICE, lambda e, k=kind, kk=key: self.on_assign_alert(k, kk))
+            assign[key] = achoice
+        self._alert_ui[kind] = {"list": lst, "assign": assign, "files": []}
+
+    def _alert_settings_dict(self, kind):
+        return self.settings.pre_adhan_sounds if kind == "pre_adhan" else self.settings.iqama_sounds
+
+    def on_assign_alert(self, kind, key):
+        ui = self._alert_ui[kind]
+        sel = ui["assign"][key].GetSelection()
+        target = self._alert_settings_dict(kind)
+        if sel == 0:
+            target.pop(key, None)
+        elif sel == 1:
+            target[key] = snd.ALERT_RANDOM_TOKEN
+        elif 2 <= sel <= len(ui["files"]) + 1:
+            target[key] = str(ui["files"][sel - 2])
+        save_settings(self.settings)
+        self.refresh_sound_lists()
+        self.log(S.MSG_ALERT_SET)
+        self.speak(S.MSG_ALERT_SET)
+
+    def _preview_alert(self, kind):
+        ui = self._alert_ui[kind]
+        sel = ui["list"].GetSelection()
+        if sel == 0:
+            path = snd.resolve_alert(kind, snd.ALERT_RANDOM_TOKEN, self.dirs[kind])
+            if path is not None:
+                self._safe_play(path)
+        elif 1 <= sel <= len(ui["files"]):
+            self._safe_play(ui["files"][sel - 1])
+
+    def _refresh_alert_lists(self):
+        for kind in ("pre_adhan", "iqama"):
+            ui = getattr(self, "_alert_ui", {}).get(kind)
+            if not ui:
+                continue
+            bundled = snd.bundled_alerts(kind)
+            user_files = snd.list_sounds(self.dirs[kind])
+            ui["files"] = [p for p, _ in bundled] + user_files
+            names = [label for _, label in bundled] + [snd.display_name(p) for p in user_files]
+            ui["list"].Set([S.OPT_RANDOM_ALERT] + names)
+            target = self._alert_settings_dict(kind)
+            for key, choice in ui["assign"].items():
+                default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
+                choice.Set([default_label, S.OPT_RANDOM_ALERT] + names)
+                current = target.get(key, "")
+                idx = 0
+                if current == snd.ALERT_RANDOM_TOKEN:
+                    idx = 1
+                elif current:
+                    for i, pth in enumerate(ui["files"]):
+                        if str(pth) == current:
+                            idx = i + 2
+                            break
+                choice.SetSelection(idx)
 
     # ------------------------------------------------------------- helpers
     def _make_calculator(self) -> PrayerTimeCalculator:
@@ -468,7 +561,10 @@ class MainFrame(wx.Frame):
         ar = ARABIC_NAMES.get(ev.prayer or "", "")
         if ev.kind == PRE_ADHAN:
             msg = S.msg_pre_adhan(ar, self.settings.pre_adhan_for(ev.prayer))
-            self._safe_play(snd.default_tone("pre_adhan"))
+            path = snd.resolve_alert(
+                "pre_adhan", self.settings.pre_adhan_sound_for(ev.prayer), self.dirs["pre_adhan"]
+            )
+            self._safe_play(path if path is not None else snd.default_tone("pre_adhan"))
             self.notify(msg)
             self.speak(msg)
             self.log(msg)
@@ -484,7 +580,10 @@ class MainFrame(wx.Frame):
             self.log(msg)
         elif ev.kind == IQAMA:
             msg = S.msg_iqama_now(ar)
-            self._safe_play(snd.default_tone("iqama"))
+            path = snd.resolve_alert(
+                "iqama", self.settings.iqama_sound_for(ev.prayer), self.dirs["iqama"]
+            )
+            self._safe_play(path if path is not None else snd.default_tone("iqama"))
             self.notify(msg)
             self.speak(msg)
             self.log(msg)
@@ -666,6 +765,7 @@ class MainFrame(wx.Frame):
         self.adhkar_list.Set([label for _, label in bundled] + [snd.display_name(p) for p in user_files])
         current = snd.adhan_display(self.settings.adhan_sounds.get("all", ""))
         self.current_adhan_label.SetLabel(f"{S.SET_ADHAN_SOUND}: {current}")
+        self._refresh_alert_lists()
 
     def _add_files(self, directory):
         dlg = wx.FileDialog(

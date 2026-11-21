@@ -38,7 +38,10 @@ def sound_dirs(base: Path = None) -> dict:
     return {
         "adhan": base / "sounds" / "adhan",
         "adhkar": base / "sounds" / "adhkar",
-        "alerts": base / "sounds" / "alerts",
+        # v1.7: one user library folder per alert kind (pre-adhan reminder,
+        # iqama). The old shared "alerts" folder was never exposed in the UI.
+        "pre_adhan": base / "sounds" / "pre_adhan",
+        "iqama": base / "sounds" / "iqama",
     }
 
 
@@ -63,7 +66,11 @@ class Settings:
 
     # sounds
     volume: int = 80                # 0..100
-    adhan_sounds: dict = field(default_factory=dict)  # "all" or prayer name -> file path
+    adhan_sounds: dict = field(default_factory=dict)  # "all" or prayer name -> adhan entry
+    # v1.7: same vocabulary as adhan_sounds but "alerts:<key>" entries, for
+    # the pre-adhan reminder and the iqama alert
+    pre_adhan_sounds: dict = field(default_factory=dict)
+    iqama_sounds: dict = field(default_factory=dict)
     bismillah_voice: str = "husary"   # key into sounds.BISMILLAH_VOICES
     speak_prayer_name: bool = True  # spoken announcement alongside sounds
 
@@ -97,6 +104,12 @@ class Settings:
 
     def adhan_sound_for(self, prayer: str) -> str:
         return self.adhan_sounds.get(prayer) or self.adhan_sounds.get("all") or ""
+
+    def pre_adhan_sound_for(self, prayer: str) -> str:
+        return self.pre_adhan_sounds.get(prayer) or self.pre_adhan_sounds.get("all") or ""
+
+    def iqama_sound_for(self, prayer: str) -> str:
+        return self.iqama_sounds.get(prayer) or self.iqama_sounds.get("all") or ""
 
 
 def settings_path(base: Path = None) -> Path:

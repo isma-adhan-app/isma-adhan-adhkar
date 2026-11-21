@@ -1,7 +1,8 @@
 """Generate the built-in alert tones (WAV) shipped with the app.
 
 Run from the repo root:  python tools/make_tones.py
-Creates assets/sounds/{soft_chime,iqama_tone,attention}.wav.
+Creates assets/sounds/{soft_chime,iqama_tone,attention}.wav plus the
+v1.7 alert variants (pre_chime_up, pre_chime_triple, iqama_low, iqama_triple).
 These are neutral alert tones. The app speaks the prayer name alongside them
 and the user is expected to add a real adhan recording himself.
 """
@@ -57,6 +58,22 @@ def main() -> None:
     # iqama: single firm double beep
     iqama = tone(1046, 0.25, 0.5, decay=6.0) + silence(0.12) + tone(1046, 0.4, 0.5, decay=6.0)
     write_wav("iqama_tone.wav", iqama)
+
+    # v1.7 pre-adhan variants
+    # two gentle rising notes
+    up = tone(660, 0.5, 0.4) + silence(0.15) + tone(880, 0.7, 0.4)
+    write_wav("pre_chime_up.wav", up)
+    # three soft descending notes
+    triple = tone(988, 0.4, 0.35) + silence(0.12) + tone(784, 0.4, 0.35) + silence(0.12) + tone(659, 0.6, 0.35)
+    write_wav("pre_chime_triple.wav", triple)
+
+    # v1.7 iqama variants
+    # firm lower double beep
+    low = tone(784, 0.25, 0.5, decay=6.0) + silence(0.12) + tone(784, 0.4, 0.5, decay=6.0)
+    write_wav("iqama_low.wav", low)
+    # three short beeps
+    three = tone(1046, 0.18, 0.5, decay=7.0) + silence(0.10) + tone(1046, 0.18, 0.5, decay=7.0) + silence(0.10) + tone(1046, 0.3, 0.5, decay=7.0)
+    write_wav("iqama_triple.wav", three)
 
     # attention: three rising notes (fallback when no adhan file is chosen)
     attention = mix(tone(523, 1.5, 0.35), tone(659, 1.5, 0.25), tone(784, 1.5, 0.2))
