@@ -1,0 +1,28 @@
+E2E report - run 17 (build failed before the E2E steps)
+
+--- pytest output ---
+........................................................................ [ 83%]
+.....F........                                                           [100%]
+================================== FAILURES ===================================
+__________________ test_module_imports_and_noops_off_windows __________________
+
+    def test_module_imports_and_noops_off_windows():
+        # On Linux (CI unit tests) both hooks must be harmless no-ops.
+>       assert w32.create_installer_mutex() is False
+E       assert True is False
+E        +  where True = <function create_installer_mutex at 0x00000149EEEA8040>()
+E        +    where <function create_installer_mutex at 0x00000149EEEA8040> = w32.create_installer_mutex
+
+tests\test_win32_integration.py:14: AssertionError
+============================== warnings summary ===============================
+src\isma_adhan\config.py:3
+  D:\a\isma-adhan-adhkar\isma-adhan-adhkar\tests\..\src\isma_adhan\config.py:3: SyntaxWarning: invalid escape sequence '\I'
+    Config and user sounds live in %APPDATA%\IsmaAdhan on Windows
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_win32_integration.py::test_module_imports_and_noops_off_windows - assert True is False
+ +  where True = <function create_installer_mutex at 0x00000149EEEA8040>()
+ +    where <function create_installer_mutex at 0x00000149EEEA8040> = w32.create_installer_mutex
+1 failed, 85 passed, 1 warning in 1.02s
+
