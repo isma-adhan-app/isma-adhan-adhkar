@@ -95,6 +95,17 @@ worst difference over 7 dates x 6 prayers for Cairo is 1.3 minutes
 See docs/PACKAGING.md. Short version: `pyinstaller IsmaAdhan.spec` on
 Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 
+## Upgrading over a running instance (v1.5.1)
+
+The app holds a named mutex (`IsmaAdhanAppMutex`) and answers a broadcast
+quit message (`ISMA_ADHAN_REQUEST_QUIT`) with its normal quit path. Before
+copying files the installer broadcasts that message, waits for the mutex to
+clear, then force-closes any leftover `IsmaAdhan.exe` (covers pre-1.5.1
+builds that have neither hook). The app also quits for real on Windows
+session-end instead of hiding to the tray. The workflow's E2E steps prove
+all three paths on a clean runner: fresh silent install, install over a
+running same-version instance, install over a running pre-fix instance.
+
 ## Known limitations of v1.1
 
 - The wxPython UI was developed on Linux without wxPython available, so it is

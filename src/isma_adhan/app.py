@@ -96,13 +96,44 @@ def _after_window_shown(frame) -> None:
         _log(f"startup: announcement failed: {exc!r}")
 
 
+def _bind_end_session(app, frame) -> None:
+    """Quit for real when Windows ends the session or the Restart Manager
+    asks. The normal close handler hides to the tray, which is what made
+    installer-driven and shutdown-driven closes leave the process (and its
+    locked DLLs) alive."""
+
+    def _on_query_end_session(event):
+        frame._really_quit = True
+        event.Skip()
+
+    def _on_end_session(event):
+        frame._really_quit = True
+        try:
+            frame.timer.Stop()
+            frame.player.stop()
+        except Exception:
+            pass
+        frame.Destroy()
+        event.Skip()
+
+    try:
+        app.Bind(wx.EVT_QUERY_END_SESSION, _on_query_end_session)
+        app.Bind(wx.EVT_END_SESSION, _on_end_session)
+        _log("startup: end-session handlers bound")
+    except Exception as exc:
+        _log(f"startup: end-session bind failed: {exc!r}")
+
+
 def run(minimized: bool = False) -> int:
     _log("startup: importing ui modules")
     from .audio import create_player
     from .main_window import MainFrame
     from .speech import Speaker
+    from . import win32_integration
 
     _log("startup: imports ok")
+    if win32_integration.create_installer_mutex():
+        _log("startup: installer mutex held")
     app = wx.App()
     _log("startup: wx.App created")
     try:
@@ -111,6 +142,9 @@ def run(minimized: bool = False) -> int:
         speaker = Speaker()
         frame = MainFrame(player=player, speaker=speaker)
         _log("startup: main window constructed")
+        if win32_integration.install_quit_handler(frame, log=_log):
+            _log("startup: installer quit hook ok")
+        _bind_end_session(app, frame)
         try:
             frame.tray = TrayIcon(frame)
             _log("startup: tray icon ok")

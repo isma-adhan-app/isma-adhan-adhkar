@@ -68,6 +68,157 @@ jobs:
       - name: Compile installer
         run: iscc build\installer.iss
 
+      - name: E2E 1 - fresh silent install of the new build
+        shell: pwsh
+        run: |
+          Set-Content e2e-report.txt "E2E install test - run $env:GITHUB_RUN_NUMBER commit $env:GITHUB_SHA"
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          $inst = (Resolve-Path dist\installer\IsmaAdhan-Setup.exe).Path
+          try {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            $p = Start-Process $inst -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e1.log' -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+            foreach ($f in @('IsmaAdhan.exe','_internal\MSVCP140.dll','_internal\python312.dll')) {
+              if (-not (Test-Path (Join-Path $dir $f))) { throw "missing after install: $f" }
+            }
+            Add-Content e2e-report.txt 'PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan'
+          } catch {
+            Add-Content e2e-report.txt "FAIL fresh-silent-install: $_"
+            if (Test-Path e2e1.log) { Add-Content e2e-report.txt (Get-Content e2e1.log -Tail 30 | Out-String) }
+          }
+
+      - name: E2E 2 - installed app passes its packaged self-test
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          try {
+            Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
+            & "$dir\IsmaAdhan.exe" --self-test | Out-Null
+            Start-Sleep -Seconds 2
+            $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
+            if ($log -notmatch 'self-test result: PASS') { throw 'self-test marker missing from app.log' }
+            Add-Content e2e-report.txt 'PASS installed-selftest'
+          } catch {
+            Add-Content e2e-report.txt "FAIL installed-selftest: $_"
+            Add-Content e2e-report.txt (Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Tail 30 -ErrorAction SilentlyContinue | Out-String)
+          }
+
+      - name: E2E 3 - new installer over a RUNNING new instance (graceful quit hook)
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          $inst = (Resolve-Path dist\installer\IsmaAdhan-Setup.exe).Path
+          try {
+            $app = Start-Process "$dir\IsmaAdhan.exe" -PassThru
+            Start-Sleep -Seconds 18
+            if ($app.HasExited) { throw "app exited early (code $($app.ExitCode)); GUI cannot stay alive in this session" }
+            $u = Start-Process $inst -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e3.log' -Wait -PassThru
+            if ($u.ExitCode -ne 0) { throw "installer exit $($u.ExitCode)" }
+            Start-Sleep -Seconds 2
+            if (Get-Process -Id $app.Id -ErrorAction SilentlyContinue) { Stop-Process -Id $app.Id -Force; throw 'running instance survived the installer' }
+            Add-Content e2e-report.txt 'PASS upgrade-over-running-same-version: installer closed the running app and completed'
+          } catch {
+            Add-Content e2e-report.txt "FAIL upgrade-over-running-same-version: $_"
+            Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
+            if (Test-Path e2e3.log) { Add-Content e2e-report.txt (Get-Content e2e3.log -Tail 30 | Out-String) }
+          }
+
+      - name: E2E 4 - app still healthy after the over-install
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          try {
+            Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
+            & "$dir\IsmaAdhan.exe" --self-test | Out-Null
+            Start-Sleep -Seconds 2
+            $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
+            if ($log -notmatch 'self-test result: PASS') { throw 'self-test marker missing from app.log' }
+            Add-Content e2e-report.txt 'PASS post-upgrade-selftest'
+          } catch {
+            Add-Content e2e-report.txt "FAIL post-upgrade-selftest: $_"
+          }
+
+      - name: E2E 5 - repro check - OLD v1.5 installer over a running OLD instance
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          $old = "$env:RUNNER_TEMP\IsmaAdhan-Setup-old.exe"
+          try {
+            Invoke-WebRequest 'https://github.com/isma-adhan-app/isma-adhan-adhkar/releases/download/v1.5-build15/IsmaAdhan-Setup.exe' -OutFile $old
+            $un = Get-ChildItem $dir -Filter 'unins*.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($un) { Start-Process $un.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait }
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            $p = Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e5a.log' -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "old fresh install exit $($p.ExitCode)" }
+            $app = Start-Process "$dir\IsmaAdhan.exe" -PassThru
+            Start-Sleep -Seconds 18
+            if ($app.HasExited) { throw "old app exited early (code $($app.ExitCode))" }
+            $u = Start-Process $old -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e5b.log' -Wait -PassThru
+            Start-Sleep -Seconds 2
+            $alive = [bool](Get-Process -Id $app.Id -ErrorAction SilentlyContinue)
+            Add-Content e2e-report.txt ("INFO old-installer-over-running-old-app: exit=" + $u.ExitCode + " appSurvived=" + $alive + " (pre-fix behavior; Amrw's interactive run showed DeleteFile code 5)")
+            Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
+          } catch {
+            Add-Content e2e-report.txt "INFO old-repro inconclusive: $_"
+            Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
+          }
+
+      - name: E2E 6 - NEW installer over a RUNNING OLD v1.5 instance (taskkill fallback = Amrw's upgrade)
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          $inst = (Resolve-Path dist\installer\IsmaAdhan-Setup.exe).Path
+          try {
+            $app = Start-Process "$dir\IsmaAdhan.exe" -PassThru
+            Start-Sleep -Seconds 18
+            if ($app.HasExited) { throw "old app exited early (code $($app.ExitCode)); GUI cannot stay alive in this session" }
+            $u = Start-Process $inst -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e6.log' -Wait -PassThru
+            if ($u.ExitCode -ne 0) { throw "installer exit $($u.ExitCode)" }
+            Start-Sleep -Seconds 2
+            if (Get-Process -Id $app.Id -ErrorAction SilentlyContinue) { Stop-Process -Id $app.Id -Force; throw 'OLD instance survived the new installer' }
+            Add-Content e2e-report.txt 'PASS upgrade-over-running-old-version: fallback closed the old app and the install completed'
+          } catch {
+            Add-Content e2e-report.txt "FAIL upgrade-over-running-old-version: $_"
+            Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
+            if (Test-Path e2e6.log) { Add-Content e2e-report.txt (Get-Content e2e6.log -Tail 30 | Out-String) }
+          }
+
+      - name: E2E 7 - upgraded-from-old app passes its self-test
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          try {
+            Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
+            & "$dir\IsmaAdhan.exe" --self-test | Out-Null
+            Start-Sleep -Seconds 2
+            $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
+            if ($log -notmatch 'self-test result: PASS') { throw 'self-test marker missing from app.log' }
+            Add-Content e2e-report.txt 'PASS final-selftest-after-old-to-new-upgrade'
+          } catch {
+            Add-Content e2e-report.txt "FAIL final-selftest-after-old-to-new-upgrade: $_"
+          }
+
+      - name: Publish e2e report to the ci-reports branch (always)
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $repo = 'isma-adhan-app/isma-adhan-adhkar'
+          try { gh api repos/$repo/git/refs -f ref=refs/heads/ci-reports -f sha=$env:GITHUB_SHA | Out-Null } catch { }
+          $sha = $null
+          try { $sha = (gh api repos/$repo/contents/e2e-report-latest.txt?ref=ci-reports | ConvertFrom-Json).sha } catch { }
+          $body = @{ message = "e2e report run $env:GITHUB_RUN_NUMBER"; content = [Convert]::ToBase64String([IO.File]::ReadAllBytes('e2e-report.txt')); branch = 'ci-reports' }
+          if ($sha) { $body.sha = $sha }
+          ($body | ConvertTo-Json) | gh api repos/$repo/contents/e2e-report-latest.txt -X PUT --input - | Out-Null
+          Write-Host 'e2e report pushed to ci-reports branch'
+
+      - name: E2E gate
+        shell: pwsh
+        run: |
+          Get-Content e2e-report.txt | Out-Host
+          if (Select-String -Path e2e-report.txt -Pattern '^FAIL' -Quiet) { throw 'one or more E2E install checks failed - see report above and the ci-reports branch' }
+
       - name: Zip portable onedir (fallback)
         shell: pwsh
         run: Compress-Archive -Path dist\IsmaAdhan -DestinationPath dist\IsmaAdhan-portable.zip
@@ -87,5 +238,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "v1.5-build$env:GITHUB_RUN_NUMBER"
-          gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip --title "IsmaAdhan $tag" --notes "Automated build $env:GITHUB_RUN_NUMBER. v1.5: monthly prayer-times export to Documents (spoken confirmation), spoken Hijri<->Gregorian date converter, notable Islamic date announced in the launch speech. Earlier: v1.4: random-reciter option for the startup Bismillah. Earlier: v1.3: startup Bismillah recited by a real reciter selectable in settings (Husary / Al-Banna / Abdul Basit / Minshawi, public-domain EveryAyah recordings), date now spoken at launch and shown as a prominent focusable field before the prayer list. Earlier: v1.2: startup Bismillah before any other sound, Hijri + Gregorian dates in Arabic words with screen-reader access. Earlier: v1.1: country+city picker for 244 countries with Windows auto-detection, per-prayer adhan sounds, per-prayer pre-adhan / iqama / post-prayer adhkar alerts, 14 bundled adhkar clips (license-safe TTS), v1.0 settings migrate automatically. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside." --latest
+          $tag = "v1.5.1-build$env:GITHUB_RUN_NUMBER"
+          $e2e = Get-Content e2e-report.txt -Raw -ErrorAction SilentlyContinue
+          $notes = "Automated build $env:GITHUB_RUN_NUMBER. v1.5.1: the installer now closes a running instance before copying files (fixes the DeleteFile code 5 upgrade error); the app answers the installer's close request and Windows session-end properly instead of hiding to the tray. Earlier: v1.5: monthly prayer-times export to Documents (spoken confirmation), spoken Hijri<->Gregorian date converter, notable Islamic date announced in the launch speech. v1.4: random-reciter option for the startup Bismillah. v1.3: startup Bismillah recited by a real reciter selectable in settings (Husary / Al-Banna / Abdul Basit / Minshawi, public-domain EveryAyah recordings), date now spoken at launch and shown as a prominent focusable field before the prayer list. v1.2: startup Bismillah before any other sound, Hijri + Gregorian dates in Arabic words with screen-reader access. v1.1: country+city picker for 244 countries with Windows auto-detection, per-prayer adhan sounds, per-prayer pre-adhan / iqama / post-prayer adhkar alerts, 14 bundled adhkar clips (license-safe TTS), v1.0 settings migrate automatically. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside.`n`nE2E install test on this exact installer (clean Windows runner):`n" + $e2e
+          gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip e2e-report.txt --title "IsmaAdhan $tag" --notes $notes --latest

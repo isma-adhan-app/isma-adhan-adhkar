@@ -1,0 +1,99 @@
+"""Windows-only hooks that let the Inno Setup installer close us gracefully.
+
+Two pieces:
+
+1. A named mutex (MUTEX_NAME) held for the process lifetime. The installer's
+   AppMutex directive uses it to detect a running instance.
+2. A custom broadcast window message (QUIT_MESSAGE_NAME). The installer posts
+   it to all top-level windows before copying files; the running app answers
+   by taking its normal quit path (timer off, player off, window destroyed),
+   which releases every file lock under _internal. Older builds never
+   registered the message, so the installer also falls back to taskkill.
+
+Both functions are no-ops off Windows so the code stays importable in CI and
+unit tests on Linux.
+"""
+from __future__ import annotations
+
+import ctypes
+import sys
+
+MUTEX_NAME = "IsmaAdhanAppMutex"
+QUIT_MESSAGE_NAME = "ISMA_ADHAN_REQUEST_QUIT"
+
+_GWL_WNDPROC = -4
+
+# 64-bit-safe pointer types (ctypes.wintypes.WPARAM is wrong on x64).
+_LRESULT = ctypes.c_ssize_t
+_WPARAM = ctypes.c_size_t
+_LPARAM = ctypes.c_ssize_t
+
+_MUTEX_HANDLE = None
+_WNDPROC_ORIGINAL = None
+_WNDPROC_CALLBACK = None  # keep a reference so it is never garbage-collected
+_QUIT_MESSAGE_ID = 0
+
+
+def create_installer_mutex() -> bool:
+    """Hold the named mutex the installer looks for. No-op off Windows."""
+    global _MUTEX_HANDLE
+    if sys.platform != "win32":
+        return False
+    if _MUTEX_HANDLE:
+        return True
+    try:
+        handle = ctypes.windll.kernel32.CreateMutexW(None, False, MUTEX_NAME)
+        if not handle:
+            return False
+        _MUTEX_HANDLE = handle
+        return True
+    except Exception:
+        return False
+
+
+def install_quit_handler(frame, log=None) -> bool:
+    """Answer the installer's broadcast quit message with a real quit.
+
+    Subclasses the main frame's window procedure; when the installer posts
+    QUIT_MESSAGE_NAME the frame runs its normal quit path (which stops the
+    scheduler timer, stops audio and destroys the window) instead of hiding
+    to the tray. Returns False (harmless) when anything is unavailable.
+    """
+    global _WNDPROC_ORIGINAL, _WNDPROC_CALLBACK, _QUIT_MESSAGE_ID
+    if sys.platform != "win32":
+        return False
+    try:
+        user32 = ctypes.windll.user32
+        _QUIT_MESSAGE_ID = user32.RegisterWindowMessageW(QUIT_MESSAGE_NAME)
+        if not _QUIT_MESSAGE_ID:
+            return False
+        wndproc_type = ctypes.WINFUNCTYPE(
+            _LRESULT, ctypes.c_void_p, ctypes.c_uint, _WPARAM, _LPARAM
+        )
+
+        def _wndproc(hwnd, msg, wparam, lparam):
+            if msg == _QUIT_MESSAGE_ID:
+                try:
+                    import wx
+
+                    wx.CallAfter(frame.on_quit, None)
+                except Exception:
+                    pass
+                return 0
+            return user32.CallWindowProcW(
+                _WNDPROC_ORIGINAL, hwnd, msg, wparam, lparam
+            )
+
+        _WNDPROC_CALLBACK = wndproc_type(_wndproc)
+        hwnd = frame.GetHandle()
+        previous = user32.SetWindowLongPtrW(
+            hwnd, _GWL_WNDPROC, ctypes.cast(_WNDPROC_CALLBACK, ctypes.c_void_p)
+        )
+        if not previous:
+            return False
+        _WNDPROC_ORIGINAL = previous
+        if log:
+            log("installer quit hook ready")
+        return True
+    except Exception:
+        return False
