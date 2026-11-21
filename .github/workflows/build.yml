@@ -25,7 +25,10 @@ jobs:
         env:
           SDL_AUDIODRIVER: dummy
           SDL_VIDEODRIVER: dummy
-        run: python -m pytest tests/ -q
+        shell: pwsh
+        run: |
+          python -m pytest tests/ -q 2>&1 | Tee-Object -FilePath pytest-output.txt
+          exit $LASTEXITCODE
 
       - name: Source-level entry self-test
         env:
@@ -205,6 +208,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $repo = 'isma-adhan-app/isma-adhan-adhkar'
+          if (-not (Test-Path e2e-report.txt)) { Set-Content e2e-report.txt "E2E report - run $env:GITHUB_RUN_NUMBER (build failed before the E2E steps)" }
+          if (Test-Path pytest-output.txt) { Add-Content e2e-report.txt "`n--- pytest output ---"; Add-Content e2e-report.txt (Get-Content pytest-output.txt -Tail 120 | Out-String) }
           try { gh api repos/$repo/git/refs -f ref=refs/heads/ci-reports -f sha=$env:GITHUB_SHA | Out-Null } catch { }
           $sha = $null
           try { $sha = (gh api repos/$repo/contents/e2e-report-latest.txt?ref=ci-reports | ConvertFrom-Json).sha } catch { }
