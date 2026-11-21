@@ -91,6 +91,15 @@ BISMILLAH_VOICES = [
 ]
 
 
+def resolve_bismillah_voice(voice: str) -> str:
+    """'random' picks one reciter per call; anything else passes through."""
+    if voice == "random":
+        import random
+
+        return random.choice([k for k, *_ in BISMILLAH_VOICES])
+    return voice
+
+
 def bismillah_path(voice: str) -> "Path | None":
     """Bundled Bismillah clip for one reciter (real recordings, EveryAyah -
     see README licensing note). None when unknown/missing; caller falls back

@@ -214,9 +214,9 @@ class MainFrame(wx.Frame):
         # --- startup bismillah reciter
         self.bismillah_choice = add_row(
             S.SET_BISMILLAH_VOICE,
-            wx.Choice(page, choices=[name for _, name, *_ in snd.BISMILLAH_VOICES]),
+            wx.Choice(page, choices=[name for _, name, *_ in snd.BISMILLAH_VOICES] + [S.OPT_RANDOM]),
         )
-        keys = [k for k, *_ in snd.BISMILLAH_VOICES]
+        keys = [k for k, *_ in snd.BISMILLAH_VOICES] + ["random"]
         self.bismillah_choice.SetSelection(
             keys.index(s.bismillah_voice) if s.bismillah_voice in keys else 0
         )
@@ -560,7 +560,7 @@ class MainFrame(wx.Frame):
             s.pre_adhan_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.pre_choices[prayer].GetSelection())]
             s.iqama_per[prayer] = self.iqama_spins[prayer].GetValue()
             s.post_adhkar_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.post_choices[prayer].GetSelection())]
-        keys = [k for k, *_ in snd.BISMILLAH_VOICES]
+        keys = [k for k, *_ in snd.BISMILLAH_VOICES] + ["random"]
         bi = self.bismillah_choice.GetSelection()
         if 0 <= bi < len(keys):
             s.bismillah_voice = keys[bi]
@@ -658,7 +658,8 @@ class MainFrame(wx.Frame):
         """Play the bundled Bismillah (first sound at launch, before the chime
         and the spoken announcement). Returns its length in seconds, or 0 when
         it cannot play so the caller falls back to the chime."""
-        path = snd.bismillah_path(self.settings.bismillah_voice)
+        voice = snd.resolve_bismillah_voice(self.settings.bismillah_voice)
+        path = snd.bismillah_path(voice)
         if path is None:
             path = snd.resource_path("assets", "sounds", "bismillah.wav")
         if not path.exists():
@@ -670,12 +671,12 @@ class MainFrame(wx.Frame):
                 with wave.open(str(path), "rb") as w:
                     secs = w.getnframes() / w.getframerate()
             else:
-                secs = snd.bismillah_voice_seconds(self.settings.bismillah_voice)
+                secs = snd.bismillah_voice_seconds(voice)
         except Exception:
             secs = 6.0
         try:
             self.player.play(path)
-            self.log(f"بسم الله الرحمن الرحيم - {snd.bismillah_voice_name(self.settings.bismillah_voice)}")
+            self.log(f"بسم الله الرحمن الرحيم - {snd.bismillah_voice_name(voice)}")
             return secs
         except Exception:
             return 0.0

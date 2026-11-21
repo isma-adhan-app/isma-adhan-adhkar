@@ -18,6 +18,7 @@ TAB_SETTINGS = "الإعدادات"
 TAB_SOUNDS = "الأصوات"
 
 LBL_DATE = "التاريخ"
+OPT_RANDOM = "عشوائي"
 LBL_NEXT_PRAYER = "الصلاة القادمة"
 LBL_REMAINING = "الوقت المتبقي"
 LBL_PRAYER_TIMES = "مواقيت الصلاة اليوم"
@@ -112,6 +113,7 @@ SND_ALL_PRAYERS = "كل الصلوات (الافتراضي)"
 MSG_LOCATION_SAVED = "تم حفظ الموقع"
 SET_BISMILLAH_VOICE = "صوت البسملة عند التشغيل"
 LBL_DATE = "التاريخ"
+OPT_RANDOM = "عشوائي"
 
 def msg_post_adhkar(prayer_ar: str) -> str:
     return f"أذكار ما بعد صلاة {prayer_ar}"

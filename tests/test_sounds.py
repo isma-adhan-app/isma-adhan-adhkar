@@ -77,3 +77,21 @@ def test_rotation_drops_removed_files():
     remaining = clips[:1]
     nxt = rot.next(remaining)
     assert nxt in remaining  # never returns a deleted file
+
+
+def test_resolve_bismillah_voice():
+    from isma_adhan.sounds import BISMILLAH_VOICES, resolve_bismillah_voice
+
+    keys = {k for k, *_ in BISMILLAH_VOICES}
+    assert resolve_bismillah_voice("husary") == "husary"
+    picks = {resolve_bismillah_voice("random") for _ in range(40)}
+    assert picks and picks <= keys
+    assert len(picks) > 1  # 40 draws landing on one voice would be a miracle
+
+
+def test_bismillah_random_setting_roundtrip(tmp_path):
+    from isma_adhan.config import Settings, load_settings, save_settings
+
+    s = Settings(bismillah_voice="random")
+    save_settings(s, base=tmp_path)
+    assert load_settings(base=tmp_path).bismillah_voice == "random"
