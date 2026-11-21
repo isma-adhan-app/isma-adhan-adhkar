@@ -203,6 +203,21 @@ jobs:
             Add-Content e2e-report.txt "FAIL final-selftest-after-old-to-new-upgrade: $_"
           }
 
+      - name: E2E 8 - silent uninstall removes the install folder completely
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          try {
+            $un = Get-ChildItem $dir -Filter 'unins*.exe' -ErrorAction Stop | Select-Object -First 1
+            $u = Start-Process $un.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+            if ($u.ExitCode -ne 0) { throw "uninstaller exit $($u.ExitCode)" }
+            Start-Sleep -Seconds 3
+            if (Test-Path $dir) { throw "folder still present: $((Get-ChildItem $dir -Recurse | Select-Object -First 5 -ExpandProperty FullName) -join ', ')" }
+            Add-Content e2e-report.txt 'PASS uninstall-removes-install-folder: no leftovers under %LOCALAPPDATA%\Programs\IsmaAdhan'
+          } catch {
+            Add-Content e2e-report.txt "FAIL uninstall-removes-install-folder: $_"
+          }
+
       - name: Publish e2e report to the ci-reports branch (always)
         if: always()
         shell: pwsh
