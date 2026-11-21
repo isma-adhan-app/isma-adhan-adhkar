@@ -48,10 +48,10 @@ Name: "{group}\{#AppNameAr}"; Filename: "{app}\{#AppExe}"
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "تشغيل البرنامج الآن / Run now"; Flags: postinstall nowait skipifsilent unchecked
 
-{ The default uninstaller only removes files it installed; app-created
-  leftovers (logs, cached data) kept the folder behind, which made the next
-  install show the "folder already exists" prompt. Purge them. User
-  settings live in %APPDATA%\IsmaAdhan and are deliberately kept. }
+; The default uninstaller only removes files it installed; app-created
+; leftovers (logs, cached data) kept the folder behind, which made the next
+; install show the "folder already exists" prompt. Purge them. User
+; settings live in %APPDATA%\IsmaAdhan and are deliberately kept.
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\*"
 Type: dirsifempty; Name: "{app}"
