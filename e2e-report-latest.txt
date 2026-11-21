@@ -1,4 +1,4 @@
-E2E install test - run 22 commit 76487a798e218b50a577b8a6c0d95d97fd5ab8b8
+E2E install test - run 23 commit c622b3a3a5110dca00696ccfe7cd3865011fc6a3
 PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan
 PASS installed-selftest
 PASS upgrade-over-running-same-version: installer closed the running app and completed
@@ -16,5 +16,5 @@ src\isma_adhan\config.py:3
     Config and user sounds live in %APPDATA%\IsmaAdhan on Windows
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-89 passed, 1 warning in 0.68s
+89 passed, 1 warning in 0.71s
 
