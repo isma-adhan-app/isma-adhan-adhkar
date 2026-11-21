@@ -140,3 +140,16 @@ def test_sound_dirs_include_alert_folders(tmp_path):
     ensure_dirs(tmp_path)
     for d in dirs.values():
         assert d.is_dir()
+
+
+def test_post_adhkar_sound_settings_roundtrip(tmp_path):
+    from isma_adhan.config import Settings, load_settings, save_settings
+
+    s = Settings()
+    assert s.post_adhkar_sound_for("dhuhr") == ""  # default = shuffled rotation
+    s.post_adhkar_sounds = {"all": "alerts:random", "maghrib": "alerts:001.mp3"}
+    save_settings(s, base=tmp_path)
+    loaded = load_settings(base=tmp_path)
+    assert loaded.post_adhkar_sound_for("maghrib") == "alerts:001.mp3"
+    assert loaded.post_adhkar_sound_for("fajr") == "alerts:random"
+    assert loaded.post_adhkar_sound_for("isha") == "alerts:random"

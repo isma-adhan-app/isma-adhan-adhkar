@@ -405,6 +405,22 @@ class MainFrame(wx.Frame):
         row2.Add(preview_adhkar_btn, 0, wx.ALL, 4)
         box.Add(row2, 0)
 
+        # v1.7: per-prayer picker for the post-prayer adhkar sound; the
+        # library above IS this kind's list (bundled clips + his files)
+        box.Add(wx.StaticText(page, label=S.SND_POST_ADHKAR_PER_PRAYER), 0, wx.LEFT | wx.TOP, 8)
+        assign = {}
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        for key, label in assign_rows:
+            arow = wx.BoxSizer(wx.HORIZONTAL)
+            arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
+            achoice = wx.Choice(page, choices=[])
+            achoice.SetName(f"{S.SND_POST_ADHKAR_PER_PRAYER} - {label}")
+            arow.Add(achoice, 1, wx.ALL | wx.EXPAND, 6)
+            box.Add(arow, 0, wx.EXPAND)
+            achoice.Bind(wx.EVT_CHOICE, lambda e, kk=key: self.on_assign_alert("post_adhkar", kk))
+            assign[key] = achoice
+        self._alert_ui["post_adhkar"] = {"list": None, "assign": assign, "files": []}
+
         page.SetSizer(box)
         self.notebook.AddPage(page, S.TAB_SOUNDS)
         self.refresh_sound_lists()
@@ -444,7 +460,11 @@ class MainFrame(wx.Frame):
         self._alert_ui[kind] = {"list": lst, "assign": assign, "files": []}
 
     def _alert_settings_dict(self, kind):
-        return self.settings.pre_adhan_sounds if kind == "pre_adhan" else self.settings.iqama_sounds
+        return {
+            "pre_adhan": self.settings.pre_adhan_sounds,
+            "iqama": self.settings.iqama_sounds,
+            "post_adhkar": self.settings.post_adhkar_sounds,
+        }[kind]
 
     def on_assign_alert(self, kind, key):
         ui = self._alert_ui[kind]
@@ -472,15 +492,17 @@ class MainFrame(wx.Frame):
             self._safe_play(ui["files"][sel - 1])
 
     def _refresh_alert_lists(self):
-        for kind in ("pre_adhan", "iqama"):
+        for kind in ("pre_adhan", "iqama", "post_adhkar"):
             ui = getattr(self, "_alert_ui", {}).get(kind)
             if not ui:
                 continue
+            user_dir = self.dirs["adhkar"] if kind == "post_adhkar" else self.dirs[kind]
             bundled = snd.bundled_alerts(kind)
-            user_files = snd.list_sounds(self.dirs[kind])
+            user_files = snd.list_sounds(user_dir)
             ui["files"] = [p for p, _ in bundled] + user_files
             names = [label for _, label in bundled] + [snd.display_name(p) for p in user_files]
-            ui["list"].Set([S.OPT_RANDOM_ALERT] + names)
+            if ui["list"] is not None:
+                ui["list"].Set([S.OPT_RANDOM_ALERT] + names)
             target = self._alert_settings_dict(kind)
             for key, choice in ui["assign"].items():
                 default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
@@ -591,7 +613,12 @@ class MainFrame(wx.Frame):
             msg = S.msg_post_adhkar(ar)
             self.log(msg)
             self.speak(msg)
-            self._play_next_adhkar_clip()
+            choice = self.settings.post_adhkar_sound_for(ev.prayer)
+            path = snd.resolve_alert("post_adhkar", choice, self.dirs["adhkar"]) if choice else None
+            if path is not None:
+                self._safe_play(path)
+            else:
+                self._play_next_adhkar_clip()
         elif ev.kind == ADHKAR:
             self._play_next_adhkar_clip()
         elif ev.kind == KAHF:

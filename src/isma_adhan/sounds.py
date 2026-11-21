@@ -240,7 +240,11 @@ def alert_clip_name(kind: str, key: str) -> str:
 
 
 def bundled_alerts(kind: str) -> list:
-    """Bundled alert clips for one kind: [(path, label)]."""
+    """Bundled alert clips for one kind: [(path, label)].
+
+    Kind "post_adhkar" means the bundled adhkar recitations."""
+    if kind == "post_adhkar":
+        return bundled_adhkar()
     out = []
     for key, name, _f in ALERT_BUNDLED.get(kind, []):
         p = alert_clip_path(kind, key)
@@ -262,7 +266,27 @@ def resolve_alert(kind: str, value: "str | None", user_dir: "Path | None" = None
     own folder for this kind (a new pick on every call); 'alerts:<key>' ->
     that bundled tone; anything else is a user file path and is returned
     only when the file exists.
+
+    Kind "post_adhkar" draws from the adhkar library (bundled clips + the
+    user's adhkar folder) and its empty value returns None: the caller keeps
+    the pre-v1.7 shuffled-rotation behavior as the default.
     """
+    if kind == "post_adhkar":
+        if not value:
+            return None
+        if value == ALERT_RANDOM_TOKEN:
+            pool = [p for p, _ in bundled_adhkar()]
+            if user_dir is not None:
+                pool += list_sounds(Path(user_dir))
+            return random.choice(pool) if pool else None
+        if value.startswith(ALERT_BUNDLED_PREFIX):
+            key = value[len(ALERT_BUNDLED_PREFIX):]
+            for p, _text in bundled_adhkar():
+                if p.name == key:
+                    return p
+            return None
+        p = Path(value)
+        return p if p.exists() else None
     if not value:
         return alert_clip_path(kind, alert_default_key(kind))
     if value == ALERT_RANDOM_TOKEN:
@@ -278,6 +302,18 @@ def resolve_alert(kind: str, value: "str | None", user_dir: "Path | None" = None
 
 def alert_display(kind: str, value: "str | None") -> str:
     """Arabic label for a stored alert-sound entry, for the settings UI."""
+    if kind == "post_adhkar":
+        if not value:
+            return "تدوير مكتبة الأذكار"
+        if value == ALERT_RANDOM_TOKEN:
+            return "عشوائي"
+        if value.startswith(ALERT_BUNDLED_PREFIX):
+            key = value[len(ALERT_BUNDLED_PREFIX):]
+            for p, text in bundled_adhkar():
+                if p.name == key:
+                    return text
+            return key
+        return display_name(Path(value))
     if not value:
         return alert_clip_name(kind, alert_default_key(kind))
     if value == ALERT_RANDOM_TOKEN:

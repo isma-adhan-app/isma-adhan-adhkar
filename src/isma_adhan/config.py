@@ -71,6 +71,8 @@ class Settings:
     # the pre-adhan reminder and the iqama alert
     pre_adhan_sounds: dict = field(default_factory=dict)
     iqama_sounds: dict = field(default_factory=dict)
+    # post-prayer adhkar: empty entry keeps the shuffled-rotation default
+    post_adhkar_sounds: dict = field(default_factory=dict)
     bismillah_voice: str = "husary"   # key into sounds.BISMILLAH_VOICES
     speak_prayer_name: bool = True  # spoken announcement alongside sounds
 
@@ -110,6 +112,9 @@ class Settings:
 
     def iqama_sound_for(self, prayer: str) -> str:
         return self.iqama_sounds.get(prayer) or self.iqama_sounds.get("all") or ""
+
+    def post_adhkar_sound_for(self, prayer: str) -> str:
+        return self.post_adhkar_sounds.get(prayer) or self.post_adhkar_sounds.get("all") or ""
 
 
 def settings_path(base: Path = None) -> Path:

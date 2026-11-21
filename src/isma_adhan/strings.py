@@ -144,3 +144,4 @@ SND_ALERT_PER_PRAYER = {
 BTN_ADD_ALERT = "إضافة صوت تنبيه"
 OPT_RANDOM_ALERT = "عشوائي - صوت مختلف كل مرة (الأصوات المدمجة وملفاتي)"
 MSG_ALERT_SET = "تم تعيين صوت التنبيه"
+SND_POST_ADHKAR_PER_PRAYER = "صوت الأذكار بعد الصلاة لكل صلاة"

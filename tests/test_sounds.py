@@ -189,3 +189,39 @@ def test_alert_display():
     assert alert_display("pre_adhan", ALERT_RANDOM_TOKEN) == "عشوائي"
     assert alert_display("iqama", "alerts:iqama_low") == "نغمة منخفضة"
     assert alert_display("pre_adhan", "/x/y/my reminder.mp3") == "my reminder"
+
+
+def test_resolve_alert_post_adhkar():
+    from isma_adhan.sounds import ALERT_RANDOM_TOKEN, bundled_adhkar, resolve_alert
+
+    # empty = keep the shuffled rotation (caller handles the default)
+    assert resolve_alert("post_adhkar", "") is None
+    assert resolve_alert("post_adhkar", None) is None
+    bundled = bundled_adhkar()
+    assert bundled, "bundled adhkar required for this test"
+    key = bundled[0][0].name
+    assert resolve_alert("post_adhkar", f"alerts:{key}") == bundled[0][0]
+    assert resolve_alert("post_adhkar", "alerts:no-such-clip.mp3") is None
+    pool = {str(p) for p, _ in bundled}
+    picks = {str(resolve_alert("post_adhkar", ALERT_RANDOM_TOKEN)) for _ in range(30)}
+    assert picks and picks <= pool
+    assert resolve_alert("post_adhkar", "/nonexistent/ذكر.mp3") is None
+
+
+def test_resolve_alert_post_adhkar_random_includes_user_files(tmp_path):
+    from isma_adhan.sounds import ALERT_RANDOM_TOKEN, resolve_alert
+
+    own = tmp_path / "my dhikr.mp3"
+    own.write_bytes(b"x" * 1000)
+    picks = {resolve_alert("post_adhkar", ALERT_RANDOM_TOKEN, tmp_path).name for _ in range(200)}
+    assert own.name in picks
+
+
+def test_alert_display_post_adhkar():
+    from isma_adhan.sounds import ALERT_RANDOM_TOKEN, alert_display, bundled_adhkar
+
+    assert alert_display("post_adhkar", "") == "تدوير مكتبة الأذكار"
+    assert alert_display("post_adhkar", ALERT_RANDOM_TOKEN) == "عشوائي"
+    bundled = bundled_adhkar()
+    assert alert_display("post_adhkar", f"alerts:{bundled[0][0].name}") == bundled[0][1]
+    assert alert_display("post_adhkar", "/x/y/ذكري.mp3") == "ذكري"
