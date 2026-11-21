@@ -22,6 +22,19 @@ OPT_RANDOM = "عشوائي"
 LBL_NEXT_PRAYER = "الصلاة القادمة"
 LBL_REMAINING = "الوقت المتبقي"
 LBL_PRAYER_TIMES = "مواقيت الصلاة اليوم"
+LBL_CONVERT = "تحويل تاريخ (ميلادي إلى هجري أو العكس)"
+CONVERT_FIELD_NAME = "أدخل تاريخاً مثل 21/11/2026 ميلادي أو 1/9/1447 هجري"
+CONVERT_RESULT_NAME = "نتيجة التحويل"
+BTN_CONVERT = "تحويل"
+BTN_EXPORT_MONTH = "تصدير مواقيت الشهر"
+MSG_CONVERT_BAD = "لم أفهم التاريخ. اكتبه مثل 21/11/2026 للميلادي أو 1/9/1447 للهجري."
+
+
+def msg_export_done(path: str) -> str:
+    return f"تم تصدير مواقيت الشهر إلى مجلد المستندات: {path}"
+
+
+MSG_EXPORT_FAIL = "تعذر تصدير ملف المواقيت."
 BTN_PLAY_ADHAN = "تشغيل الأذان الآن"
 BTN_STOP = "إيقاف الصوت"
 LBL_LOG = "آخر التنبيهات"

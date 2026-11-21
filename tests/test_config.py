@@ -99,3 +99,16 @@ def test_migration_custom_coords_win(tmp_path):
 def test_lat_lng_accessor():
     s = Settings(lat=31.2001, lng=29.9187)
     assert s.lat_lng() == (31.2001, 29.9187)
+
+
+def test_date_tools_convert():
+    from isma_adhan.date_tools import BAD_DATE_MSG, convert_date_text
+
+    out = convert_date_text("21/11/2026")
+    assert "2026 م يوافق" in out and "هـ." in out
+    out = convert_date_text("2026-11-21")
+    assert "يوافق" in out
+    out = convert_date_text("1/9/1447")
+    assert "1447 هـ يوافق" in out and "م." in out
+    assert convert_date_text("blah") == BAD_DATE_MSG
+    assert convert_date_text("32/13/2026") == BAD_DATE_MSG

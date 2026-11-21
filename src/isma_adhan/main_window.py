@@ -23,7 +23,8 @@ from . import sounds as snd
 from . import strings as S
 from . import world
 from .config import ensure_dirs, load_settings, save_settings, sound_dirs
-from .hijri import gregorian_label, hijri_label, weekday_label
+from .hijri import gregorian_label, hijri_label, notable_announcement, weekday_label
+from .date_tools import convert_date_text, month_export_lines
 from .prayer_times import ADHAN_PRAYERS, ARABIC_NAMES, PRAYERS, PrayerTimeCalculator
 from .scheduler import ADHAN, ADHKAR, IQAMA, KAHF, POST_ADHKAR, PRE_ADHAN, SchedulerEngine
 
@@ -163,6 +164,22 @@ class MainFrame(wx.Frame):
         self.date_label.SetFont(big)
         box.Add(self.date_label, 0, wx.ALL | wx.EXPAND, 8)
 
+        # date converter: type a date, hear/see it in the other calendar
+        box.Add(wx.StaticText(page, label=S.LBL_CONVERT), 0, wx.LEFT | wx.TOP, 8)
+        conv_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.convert_input = wx.TextCtrl(page)
+        self.convert_input.SetName(S.CONVERT_FIELD_NAME)
+        self.btn_convert = wx.Button(page, label=S.BTN_CONVERT)
+        self.btn_convert.Bind(wx.EVT_BUTTON, lambda e: self.convert_date())
+        conv_row.Add(self.convert_input, 1, wx.ALL | wx.EXPAND, 4)
+        conv_row.Add(self.btn_convert, 0, wx.ALL, 4)
+        box.Add(conv_row, 0, wx.EXPAND | wx.ALL, 4)
+        self.convert_result = wx.TextCtrl(
+            page, style=wx.TE_READONLY | wx.TE_CENTER | wx.BORDER_SIMPLE
+        )
+        self.convert_result.SetName(S.CONVERT_RESULT_NAME)
+        box.Add(self.convert_result, 0, wx.ALL | wx.EXPAND, 4)
+
         box.Add(wx.StaticText(page, label=S.LBL_PRAYER_TIMES), 0, wx.LEFT | wx.TOP, 8)
         self.prayer_list = wx.ListBox(page, choices=[])
         box.Add(self.prayer_list, 0, wx.EXPAND | wx.ALL, 8)
@@ -174,6 +191,9 @@ class MainFrame(wx.Frame):
         self.btn_stop.Bind(wx.EVT_BUTTON, lambda e: self.stop_audio())
         btn_row.Add(self.btn_play, 0, wx.ALL, 4)
         btn_row.Add(self.btn_stop, 0, wx.ALL, 4)
+        self.btn_export = wx.Button(page, label=S.BTN_EXPORT_MONTH)
+        self.btn_export.Bind(wx.EVT_BUTTON, lambda e: self.export_month())
+        btn_row.Add(self.btn_export, 0, wx.ALL, 4)
         box.Add(btn_row, 0, wx.ALL, 4)
 
         box.Add(wx.StaticText(page, label=S.LBL_LOG), 0, wx.LEFT | wx.TOP, 8)
@@ -519,6 +539,35 @@ class MainFrame(wx.Frame):
             self._safe_play(snd.default_tone("fallback_adhan"))
             self.log(S.MSG_NO_ADHAN)
 
+    def convert_date(self):
+        result = convert_date_text(self.convert_input.GetValue())
+        self.convert_result.SetValue(result)
+        self.log(result)
+        self.speak(result)
+
+    def export_month(self):
+        try:
+            now = self.now()
+            lines = month_export_lines(
+                self.calc,
+                now.year,
+                now.month,
+                self.settings.city,
+                self.settings.country,
+                self.settings.method,
+            )
+            docs = Path.home() / "Documents"
+            docs.mkdir(parents=True, exist_ok=True)
+            out = docs / f"مواقيت-{now.year}-{now.month:02d}.txt"
+            # utf-8-sig so Windows Notepad shows the arabic correctly
+            out.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
+            msg = S.msg_export_done(out.name)
+            self.log(msg)
+            self.speak(msg)
+        except Exception:
+            self.log(S.MSG_EXPORT_FAIL)
+            self.speak(S.MSG_EXPORT_FAIL)
+
     def stop_audio(self):
         self.player.stop()
         self.log("تم إيقاف الصوت")
@@ -702,9 +751,11 @@ class MainFrame(wx.Frame):
             now = self.now()
             d = now.date()
             name, at = self.calc.next_prayer(now)
+            note = notable_announcement(d)
             text = (
                 f"برنامج {S.APP_NAME} يعمل الآن. "
                 f"اليوم {weekday_label(d)}، {gregorian_label(d)}، الموافق {hijri_label(d)}. "
+                f"{note + ' ' if note else ''}"
                 f"الصلاة القادمة صلاة {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}."
             )
         except Exception:

@@ -28,6 +28,13 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
   their own adhan files on top
 - audio adhkar clips played in random order every 10/15/20/30 minutes,
   with quiet hours (default 23:00-05:00, toggleable)
+- monthly prayer-times export: one button writes a plain-text file
+  (arabic, screen-reader friendly, one compact line per day) to the
+  Documents folder, with spoken confirmation
+- spoken Hijri/Gregorian date converter on the main tab: type a date like
+  21/11/2026 (or 1/9/1447) and hear it in the other calendar
+- notable Islamic dates (Ramadan start, both Eids, Ashura, the Prophet's
+  birthday, ...) announced in the launch speech ("غداً أول شهر رمضان")
 - Friday reminder for Surat Al-Kahf
 - system tray presence, optional autostart with Windows
 - startup Bismillah: بسم الله الرحمن الرحيم plays on launch before any other
