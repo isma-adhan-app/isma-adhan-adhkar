@@ -110,6 +110,8 @@ OPT_DEFAULT = "(نفس الافتراضي)"
 OPT_NONE = "(لا شيء)"
 SND_ALL_PRAYERS = "كل الصلوات (الافتراضي)"
 MSG_LOCATION_SAVED = "تم حفظ الموقع"
+SET_BISMILLAH_VOICE = "صوت البسملة عند التشغيل"
+LBL_DATE = "التاريخ"
 
 def msg_post_adhkar(prayer_ar: str) -> str:
     return f"أذكار ما بعد صلاة {prayer_ar}"

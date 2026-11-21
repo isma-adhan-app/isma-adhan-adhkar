@@ -145,21 +145,23 @@ class MainFrame(wx.Frame):
 
         big = wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
 
-        # read-only text control (not a StaticText) so the date is in the tab
-        # order and NVDA announces it like any other field
-        self.date_label = wx.TextCtrl(
-            page, style=wx.TE_READONLY | wx.TE_CENTER | wx.BORDER_SIMPLE
-        )
-        self.date_label.SetName("التاريخ الميلادي والهجري")
-        self.date_label.SetFont(big)
-        box.Add(self.date_label, 0, wx.ALL | wx.EXPAND, 8)
-
         self.next_label = wx.StaticText(page, label="")
         self.next_label.SetFont(big)
         box.Add(self.next_label, 0, wx.ALL, 8)
 
         self.remaining_label = wx.StaticText(page, label="")
         box.Add(self.remaining_label, 0, wx.ALL, 8)
+
+        # date line: prominent, right before the prayer-times list, and a
+        # read-only text control (not a StaticText) so the date is in the tab
+        # order and NVDA announces it like any other field
+        box.Add(wx.StaticText(page, label=S.LBL_DATE), 0, wx.LEFT | wx.TOP, 8)
+        self.date_label = wx.TextCtrl(
+            page, style=wx.TE_READONLY | wx.TE_CENTER | wx.BORDER_SIMPLE
+        )
+        self.date_label.SetName("التاريخ الميلادي والهجري")
+        self.date_label.SetFont(big)
+        box.Add(self.date_label, 0, wx.ALL | wx.EXPAND, 8)
 
         box.Add(wx.StaticText(page, label=S.LBL_PRAYER_TIMES), 0, wx.LEFT | wx.TOP, 8)
         self.prayer_list = wx.ListBox(page, choices=[])
@@ -208,6 +210,16 @@ class MainFrame(wx.Frame):
         detect_btn = wx.Button(page, label=S.SET_DETECT)
         detect_btn.Bind(wx.EVT_BUTTON, lambda e: self.on_detect_location())
         box.Add(detect_btn, 0, wx.ALL, 6)
+
+        # --- startup bismillah reciter
+        self.bismillah_choice = add_row(
+            S.SET_BISMILLAH_VOICE,
+            wx.Choice(page, choices=[name for _, name, *_ in snd.BISMILLAH_VOICES]),
+        )
+        keys = [k for k, *_ in snd.BISMILLAH_VOICES]
+        self.bismillah_choice.SetSelection(
+            keys.index(s.bismillah_voice) if s.bismillah_voice in keys else 0
+        )
 
         # --- per-prayer alerts: pre-adhan / iqama / post-prayer adhkar
         grid = wx.FlexGridSizer(rows=len(ADHAN_PRAYERS) + 1, cols=4, vgap=4, hgap=6)
@@ -548,6 +560,10 @@ class MainFrame(wx.Frame):
             s.pre_adhan_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.pre_choices[prayer].GetSelection())]
             s.iqama_per[prayer] = self.iqama_spins[prayer].GetValue()
             s.post_adhkar_per[prayer] = PRE_ADHAN_CHOICES[max(0, self.post_choices[prayer].GetSelection())]
+        keys = [k for k, *_ in snd.BISMILLAH_VOICES]
+        bi = self.bismillah_choice.GetSelection()
+        if 0 <= bi < len(keys):
+            s.bismillah_voice = keys[bi]
         s.adhkar_enabled = self.adhkar_check.GetValue()
         s.adhkar_interval_minutes = ADHKAR_INTERVAL_CHOICES[
             max(0, self.adhkar_interval_choice.GetSelection())
@@ -642,19 +658,24 @@ class MainFrame(wx.Frame):
         """Play the bundled Bismillah (first sound at launch, before the chime
         and the spoken announcement). Returns its length in seconds, or 0 when
         it cannot play so the caller falls back to the chime."""
-        path = snd.resource_path("assets", "sounds", "bismillah.wav")
+        path = snd.bismillah_path(self.settings.bismillah_voice)
+        if path is None:
+            path = snd.resource_path("assets", "sounds", "bismillah.wav")
         if not path.exists():
             return 0.0
         try:
-            import wave
+            if path.suffix.lower() == ".wav":
+                import wave
 
-            with wave.open(str(path), "rb") as w:
-                secs = w.getnframes() / w.getframerate()
+                with wave.open(str(path), "rb") as w:
+                    secs = w.getnframes() / w.getframerate()
+            else:
+                secs = snd.bismillah_voice_seconds(self.settings.bismillah_voice)
         except Exception:
-            secs = 3.5
+            secs = 6.0
         try:
             self.player.play(path)
-            self.log("بسم الله الرحمن الرحيم")
+            self.log(f"بسم الله الرحمن الرحيم - {snd.bismillah_voice_name(self.settings.bismillah_voice)}")
             return secs
         except Exception:
             return 0.0
@@ -665,9 +686,11 @@ class MainFrame(wx.Frame):
         speak_prayer_name setting so first run always says something."""
         try:
             now = self.now()
+            d = now.date()
             name, at = self.calc.next_prayer(now)
             text = (
                 f"برنامج {S.APP_NAME} يعمل الآن. "
+                f"اليوم {weekday_label(d)}، {gregorian_label(d)}، الموافق {hijri_label(d)}. "
                 f"الصلاة القادمة صلاة {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}."
             )
         except Exception:

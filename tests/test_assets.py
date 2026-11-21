@@ -21,6 +21,18 @@ def test_bundled_adhkar_complete():
         assert text.strip()
 
 
+def test_bismillah_reciter_clips():
+    import sys
+
+    sys.path.insert(0, str(ASSETS.parent / "src"))
+    from isma_adhan.sounds import BISMILLAH_VOICES
+
+    assert len(BISMILLAH_VOICES) >= 4
+    for key, *_ in BISMILLAH_VOICES:
+        clip = ASSETS / "sounds" / "bismillah" / f"{key}.mp3"
+        assert clip.exists() and clip.stat().st_size > 20000, key
+
+
 def test_world_data_files():
     assert (ASSETS / "world.json").exists()
     assert (ASSETS / "windows_zones.json").exists()

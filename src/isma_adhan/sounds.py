@@ -82,6 +82,40 @@ def all_adhkar(user_dir: Path) -> list:
     return out
 
 
+BISMILLAH_VOICES = [
+    # key, arabic display name, clip length in seconds (measured at fetch time)
+    ("husary", "محمود خليل الحصري", 5.2),
+    ("banna", "محمود علي البنا", 9.3),
+    ("abdulbasit", "عبد الباسط عبد الصمد", 4.5),
+    ("minshawi", "محمد صديق المنشاوي", 5.0),
+]
+
+
+def bismillah_path(voice: str) -> "Path | None":
+    """Bundled Bismillah clip for one reciter (real recordings, EveryAyah -
+    see README licensing note). None when unknown/missing; caller falls back
+    to the generated bismillah.wav."""
+    keys = {k for k, *_ in BISMILLAH_VOICES}
+    if voice not in keys:
+        return None
+    p = resource_path("assets", "sounds", "bismillah", f"{voice}.mp3")
+    return p if p.exists() else None
+
+
+def bismillah_voice_name(voice: str) -> str:
+    for k, name, *_ in BISMILLAH_VOICES:
+        if k == voice:
+            return name
+    return voice
+
+
+def bismillah_voice_seconds(voice: str) -> float:
+    for k, _, secs, *_ in BISMILLAH_VOICES:
+        if k == voice:
+            return secs
+    return 5.0
+
+
 def add_sound(source: Path, directory: Path) -> Path:
     """Copy an audio file into a library folder; returns the new path."""
     source = Path(source)

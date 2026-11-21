@@ -64,6 +64,7 @@ class Settings:
     # sounds
     volume: int = 80                # 0..100
     adhan_sounds: dict = field(default_factory=dict)  # "all" or prayer name -> file path
+    bismillah_voice: str = "husary"   # key into sounds.BISMILLAH_VOICES
     speak_prayer_name: bool = True  # spoken announcement alongside sounds
 
     # adhkar loop

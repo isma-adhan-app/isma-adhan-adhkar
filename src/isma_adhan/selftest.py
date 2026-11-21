@@ -30,6 +30,10 @@ def run_self_test() -> int:
         assert resource_path("assets", "icon.ico").exists(), "missing icon"
         bismillah = resource_path("assets", "sounds", "bismillah.wav")
         assert bismillah.exists() and bismillah.stat().st_size > 2000, "missing bismillah clip"
+        from .sounds import BISMILLAH_VOICES, bismillah_path
+
+        for key, *_ in BISMILLAH_VOICES:
+            assert bismillah_path(key) is not None, f"missing bismillah clip: {key}"
 
     @check("bundled-adhkar")
     def _():
