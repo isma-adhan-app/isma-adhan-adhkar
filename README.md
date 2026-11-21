@@ -95,7 +95,19 @@ worst difference over 7 dates x 6 prayers for Cairo is 1.3 minutes
 See docs/PACKAGING.md. Short version: `pyinstaller IsmaAdhan.spec` on
 Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 
-## Upgrading over a running instance (v1.5.1)
+## Screen-reader speech (v1.6)
+
+All spoken announcements go through the running NVDA first, using the
+official NVDA Controller Client (`assets/nvda/nvdaControllerClient.dll`), so
+they use the user's own screen-reader voice and speed; when NVDA is not
+running the app falls back to SAPI. The DLL is the unmodified prebuilt x64
+binary from NV Access's official `nvda_2026.3.1_controllerClient.zip`
+(https://download.nvaccess.org/releases/stable/), licensed LGPL-2.1 and
+explicitly redistributable (its license ships alongside it in
+assets/nvda/license.txt). sha256 of the DLL:
+8c8d9e1952c8b52820988081ea58c26175e69c0fbb5a09e8f2034aae70d55f0a
+
+## Upgrading over a running instance (v1.6)
 
 The app holds a named mutex (`IsmaAdhanAppMutex`) and answers a broadcast
 quit message (`ISMA_ADHAN_REQUEST_QUIT`) with its normal quit path. Before
