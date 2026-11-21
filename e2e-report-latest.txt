@@ -1,4 +1,4 @@
-E2E install test - run 28 commit 6ff39a1cc15abae7f71c5f1d8048cee91489c9e0
+E2E install test - run 29 commit f0330ba4ce0c898c9b727a0f2cc1c381ac886055
 PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan
 PASS installed-selftest
 PASS upgrade-over-running-same-version: installer closed the running app and completed
@@ -9,13 +9,13 @@ PASS final-selftest-after-old-to-new-upgrade
 PASS uninstall-removes-install-folder: no leftovers under %LOCALAPPDATA%\Programs\IsmaAdhan
 
 --- pytest output ---
-........................................................................ [ 73%]
-..........................                                               [100%]
+........................................................................ [ 70%]
+..............................                                           [100%]
 ============================== warnings summary ===============================
 src\isma_adhan\config.py:3
   D:\a\isma-adhan-adhkar\isma-adhan-adhkar\tests\..\src\isma_adhan\config.py:3: SyntaxWarning: invalid escape sequence '\I'
     Config and user sounds live in %APPDATA%\IsmaAdhan on Windows
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-98 passed, 1 warning in 1.40s
+102 passed, 1 warning in 0.93s
 
