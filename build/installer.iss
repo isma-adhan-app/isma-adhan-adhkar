@@ -57,16 +57,15 @@ function RegisterWindowMessageW(lpString: String): UINT;
 function PostMessageW(hWnd: LongWord; Msg: UINT; wParam: LongWord; lParam: LongInt): Boolean;
   external 'PostMessageW@user32.dll stdcall';
 
-{ Runs right before files are copied (interactive and silent alike).
-  A running instance hides to the tray instead of quitting when Windows asks,
-  so without this the replace of _internal DLLs fails with DeleteFile code 5. }
-function PrepareToInstall(var NeedsRestart: Boolean): String;
+{ Close any running instance: politely first (this build and newer answer
+  the broadcast quit message with a real quit), then forcefully (covers
+  older builds that have neither hook). Safe to call repeatedly. }
+procedure CloseRunningIsmaAdhan;
 var
   MsgId: UINT;
   Attempt: Integer;
   KillResult: Integer;
 begin
-  { 1) polite quit request; this build and newer quit for real on it }
   MsgId := RegisterWindowMessageW(QUIT_MESSAGE_NAME);
   if MsgId <> 0 then
     PostMessageW($FFFF, MsgId, 0, 0); { HWND_BROADCAST }
@@ -76,10 +75,30 @@ begin
       Break;
     Sleep(250);
   end;
-  { 2) older builds never made the mutex or heard the message: force-close
-     whatever is still running so the file replace cannot fail. taskkill
-     exits 128 when nothing matches, which is fine. }
+  { taskkill exits 128 when nothing matches, which is fine }
   Exec('taskkill.exe', '/IM IsmaAdhan.exe /F /T', '', SW_HIDE, ewWaitUntilTerminated, KillResult);
   Sleep(500);
+end;
+
+{ MUST run in InitializeSetup: Inno's own AppMutex check ("Setup has
+  detected that ... is currently running") fires right after this function
+  and BEFORE PrepareToInstall, and in silent mode that prompt aborts the
+  whole install. Kill the app here so the check finds nothing. }
+function InitializeSetup(): Boolean;
+begin
+  CloseRunningIsmaAdhan;
+  Result := True;
+end;
+
+{ Belt and braces: the user could relaunch the app while the wizard is open. }
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningIsmaAdhan;
   Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  CloseRunningIsmaAdhan;
+  Result := True;
 end;
