@@ -1,11 +1,4 @@
-E2E install test - run 18 commit 550c876c47e5fb7ee560420c55be5ba9ae1a9fac
-PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan
-PASS installed-selftest
-FAIL upgrade-over-running-same-version: app exited early (code -1073740791); GUI cannot stay alive in this session
-PASS post-upgrade-selftest
-INFO old-installer-over-running-old-app: exit=0 appSurvived=False (pre-fix behavior; Amrw's interactive run showed DeleteFile code 5)
-PASS upgrade-over-running-old-version: fallback closed the old app and the install completed
-PASS final-selftest-after-old-to-new-upgrade
+E2E report - run 19 (build failed before the E2E steps)
 
 --- pytest output ---
 ........................................................................ [ 83%]
@@ -16,5 +9,5 @@ src\isma_adhan\config.py:3
     Config and user sounds live in %APPDATA%\IsmaAdhan on Windows
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-86 passed, 1 warning in 1.06s
+86 passed, 1 warning in 0.84s
 
