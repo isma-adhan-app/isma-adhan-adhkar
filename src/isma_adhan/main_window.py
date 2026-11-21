@@ -454,9 +454,8 @@ class MainFrame(wx.Frame):
             self.log(msg)
         elif ev.kind == ADHAN:
             msg = S.msg_adhan_now(ar)
-            path_str = self.settings.adhan_sound_for(ev.prayer)
-            path = Path(path_str) if path_str else None
-            if path and path.exists():
+            path = snd.resolve_adhan(self.settings.adhan_sound_for(ev.prayer))
+            if path is not None:
                 self._safe_play(path)
             else:
                 self._safe_play(snd.default_tone("fallback_adhan"))
@@ -487,8 +486,10 @@ class MainFrame(wx.Frame):
         sel = choice.GetSelection()
         if sel == 0:
             self.settings.adhan_sounds.pop(key, None)
-        elif 1 <= sel <= len(self._adhan_files):
-            self.settings.adhan_sounds[key] = str(self._adhan_files[sel - 1])
+        elif sel == 1:
+            self.settings.adhan_sounds[key] = snd.ADHAN_RANDOM_TOKEN
+        elif 2 <= sel <= len(self._adhan_files) + 1:
+            self.settings.adhan_sounds[key] = str(self._adhan_files[sel - 2])
         save_settings(self.settings)
         self.refresh_sound_lists()
         self.log(S.MSG_ADHAN_SET)
@@ -511,9 +512,8 @@ class MainFrame(wx.Frame):
 
     # --------------------------------------------------------------- actions
     def play_adhan_now(self):
-        path_str = self.settings.adhan_sounds.get("all", "")
-        path = Path(path_str) if path_str else None
-        if path and path.exists():
+        path = snd.resolve_adhan(self.settings.adhan_sounds.get("all", ""))
+        if path is not None:
             self._safe_play(path)
         else:
             self._safe_play(snd.default_tone("fallback_adhan"))
@@ -593,26 +593,29 @@ class MainFrame(wx.Frame):
 
     # ------------------------------------------------------------- sounds tab
     def refresh_sound_lists(self):
-        adhan_files = snd.list_sounds(self.dirs["adhan"])
-        self._adhan_files = adhan_files
-        names = [snd.display_name(p) for p in adhan_files]
-        self.adhan_list.Set(names)
+        bundled_a = snd.bundled_adhan()
+        user_files = snd.list_sounds(self.dirs["adhan"])
+        self._adhan_files = [p for p, _ in bundled_a] + user_files
+        names = [label for _, label in bundled_a] + [snd.display_name(p) for p in user_files]
+        self.adhan_list.Set([S.OPT_RANDOM_ADHAN] + names)
         for key, choice in getattr(self, "adhan_assign", {}).items():
             default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
-            choice.Set([default_label] + names)
+            choice.Set([default_label, S.OPT_RANDOM_ADHAN] + names)
             current = self.settings.adhan_sounds.get(key, "")
             idx = 0
-            if current:
-                for i, p in enumerate(adhan_files):
+            if current == snd.ADHAN_RANDOM_TOKEN:
+                idx = 1
+            elif current:
+                for i, p in enumerate(self._adhan_files):
                     if str(p) == current:
-                        idx = i + 1
+                        idx = i + 2
                         break
             choice.SetSelection(idx)
         bundled = snd.bundled_adhkar()
         user_files = snd.list_sounds(self.dirs["adhkar"])
         self._adhkar_files = [p for p, _ in bundled] + user_files
         self.adhkar_list.Set([label for _, label in bundled] + [snd.display_name(p) for p in user_files])
-        current = snd.display_name(self.settings.adhan_sounds.get("all")) if self.settings.adhan_sounds.get("all") else S.OPT_OFF
+        current = snd.adhan_display(self.settings.adhan_sounds.get("all", ""))
         self.current_adhan_label.SetLabel(f"{S.SET_ADHAN_SOUND}: {current}")
 
     def _add_files(self, directory):
@@ -640,17 +643,27 @@ class MainFrame(wx.Frame):
 
     def on_set_adhan(self, _event):
         sel = self.adhan_list.GetSelection()
-        if 0 <= sel < len(self._adhan_files):
-            self.settings.adhan_sounds["all"] = str(self._adhan_files[sel])
-            save_settings(self.settings)
-            self.refresh_sound_lists()
-            self.log(S.MSG_ADHAN_SET)
-            self.speak(S.MSG_ADHAN_SET)
+        if sel == 0:
+            self.settings.adhan_sounds["all"] = snd.ADHAN_RANDOM_TOKEN
+        elif 1 <= sel <= len(self._adhan_files):
+            self.settings.adhan_sounds["all"] = str(self._adhan_files[sel - 1])
+        else:
+            return
+        save_settings(self.settings)
+        self.refresh_sound_lists()
+        self.log(S.MSG_ADHAN_SET)
+        self.speak(S.MSG_ADHAN_SET)
 
     def _preview(self, listbox, directory):
         sel = listbox.GetSelection()
         files = self._adhan_files if directory == self.dirs["adhan"] else self._adhkar_files
-        if 0 <= sel < len(files):
+        if directory == self.dirs["adhan"] and sel == 0:
+            path = snd.resolve_adhan(snd.ADHAN_RANDOM_TOKEN)
+            if path is not None:
+                self._safe_play(path)
+        elif directory == self.dirs["adhan"] and 1 <= sel <= len(files):
+            self._safe_play(files[sel - 1])
+        elif directory != self.dirs["adhan"] and 0 <= sel < len(files):
             self._safe_play(files[sel])
 
     # ---------------------------------------------------------------- close

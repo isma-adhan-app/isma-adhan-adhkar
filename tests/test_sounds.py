@@ -95,3 +95,26 @@ def test_bismillah_random_setting_roundtrip(tmp_path):
     s = Settings(bismillah_voice="random")
     save_settings(s, base=tmp_path)
     assert load_settings(base=tmp_path).bismillah_voice == "random"
+
+
+def test_resolve_adhan():
+    from isma_adhan.sounds import (
+        ADHAN_VOICES,
+        ADHAN_RANDOM_TOKEN,
+        adhan_display,
+        resolve_adhan,
+    )
+
+    default = resolve_adhan("")
+    assert default is not None and default.name == "husary.mp3"
+    fixed = resolve_adhan("bundled:refaat")
+    assert fixed is not None and fixed.name == "refaat.mp3"
+    picks = {resolve_adhan(ADHAN_RANDOM_TOKEN).name for _ in range(60)}
+    assert len(picks) > 1
+    assert all(name in {f"{k}.mp3" for k, *_ in ADHAN_VOICES} for name in picks)
+    missing = resolve_adhan("/nonexistent/user clip.mp3")
+    assert missing is None
+    assert adhan_display("") == "محمود خليل الحصري - أذان القاهرة"
+    assert adhan_display(ADHAN_RANDOM_TOKEN) == "عشوائي"
+    assert adhan_display("bundled:minshawi") == "محمد صديق المنشاوي"
+    assert adhan_display("/x/y/my adhan.mp3") == "my adhan"

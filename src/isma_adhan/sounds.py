@@ -126,6 +126,74 @@ def bismillah_voice_seconds(voice: str) -> float:
     return 5.0
 
 
+ADHAN_VOICES = [
+    # key, arabic display name, clip length in seconds (measured at fetch time)
+    ("husary", "محمود خليل الحصري - أذان القاهرة", 127.5),
+    ("minshawi", "محمد صديق المنشاوي", 251.6),
+    ("mustafa", "مصطفى إسماعيل", 184.0),
+    ("refaat", "محمد رفعت - أذان القاهرة", 203.7),
+]
+ADHAN_DEFAULT_VOICE = "husary"
+ADHAN_BUNDLED_PREFIX = "bundled:"
+ADHAN_RANDOM_TOKEN = "bundled:random"
+
+
+def adhan_voice_path(key: str) -> "Path | None":
+    """Bundled adhan clip for one muezzin (real recordings, IslamWeb - see
+    README licensing note). None when unknown/missing."""
+    keys = {k for k, *_ in ADHAN_VOICES}
+    if key not in keys:
+        return None
+    p = resource_path("assets", "sounds", "adhan", f"{key}.mp3")
+    return p if p.exists() else None
+
+
+def adhan_voice_name(key: str) -> str:
+    for k, name, *_ in ADHAN_VOICES:
+        if k == key:
+            return name
+    return key
+
+
+def bundled_adhan() -> list:
+    """Bundled adhan recordings shipped with the app: [(path, label)]."""
+    out = []
+    for key, name, *_ in ADHAN_VOICES:
+        p = adhan_voice_path(key)
+        if p is not None:
+            out.append((p, name))
+    return out
+
+
+def resolve_adhan(value: "str | None") -> "Path | None":
+    """Resolve a stored adhan_sounds entry to a playable path.
+
+    Empty/None -> the default bundled muezzin; 'bundled:random' -> a random
+    bundled muezzin on every call; 'bundled:<key>' -> that muezzin; anything
+    else is a user file path and is returned only when the file exists.
+    """
+    if not value:
+        return adhan_voice_path(ADHAN_DEFAULT_VOICE)
+    if value == ADHAN_RANDOM_TOKEN:
+        keys = [k for k, *_ in ADHAN_VOICES if adhan_voice_path(k) is not None]
+        return adhan_voice_path(random.choice(keys)) if keys else None
+    if value.startswith(ADHAN_BUNDLED_PREFIX):
+        return adhan_voice_path(value[len(ADHAN_BUNDLED_PREFIX):])
+    p = Path(value)
+    return p if p.exists() else None
+
+
+def adhan_display(value: "str | None") -> str:
+    """Arabic label for a stored adhan_sounds entry, for the settings UI."""
+    if not value:
+        return adhan_voice_name(ADHAN_DEFAULT_VOICE)
+    if value == ADHAN_RANDOM_TOKEN:
+        return "عشوائي"
+    if value.startswith(ADHAN_BUNDLED_PREFIX):
+        return adhan_voice_name(value[len(ADHAN_BUNDLED_PREFIX):])
+    return display_name(Path(value))
+
+
 def add_sound(source: Path, directory: Path) -> Path:
     """Copy an audio file into a library folder; returns the new path."""
     source = Path(source)

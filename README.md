@@ -21,6 +21,10 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
 - 14 adhkar clips bundled with the app: real recitations from the Hisn
   al-Muslim audiobook (see "Bundled audio licensing" below); the user can
   still add their own clips on top
+- bundled adhan recordings by famous Egyptian muezzins - الحصري /
+  المنشاوي / مصطفى إسماعيل / محمد رفعت - selectable in the الأصوات tab,
+  plus an عشوائي option (a different muezzin every prayer); the user can
+  still add their own adhan files on top
 - audio adhkar clips played in random order every 10/15/20/30 minutes,
   with quiet hours (default 23:00-05:00, toggleable)
 - Friday reminder for Surat Al-Kahf
@@ -88,8 +92,6 @@ Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 - The wxPython UI was developed on Linux without wxPython available, so it is
   code-reviewed and unit-tested below the UI layer but not yet click-tested on
   Windows. First Windows run may surface small UI bugs.
-- No recorded adhan ships with the app (copyright); the user adds their own
-  in the الأصوات tab. Until then the app chimes and speaks the prayer name.
 - The bundled adhkar are chapter-length recordings (17 seconds to 8
   minutes), not one-dhikr snippets; the rotation plays one at a time.
 - Maghrib is computed exactly at sunset per the Egyptian method.
@@ -125,6 +127,25 @@ checks). Licensing basis (verified 2026-11-21): IslamHouse's site policy
 content by any means, unchanged, with attribution to the source. The clips
 ship byte-identical to the published files, attribution is given here and
 in this section, and the app is free and non-commercial.
+
+The 4 adhan recordings in `assets/sounds/adhan/` are classical Egyptian
+radio adhans (أذان القاهرة), fetched from IslamWeb's free-download audio
+library (audio.islamweb.net, Qatari Ministry of Endowments and Islamic
+Affairs; `tools/fetch_adhan.py` re-downloads them with sha256 checks):
+
+- husary.mp3   - محمود خليل الحصري - https://audio.islamweb.net/audio/info/122667
+- minshawi.mp3 - محمد صديق المنشاوي - https://audio.islamweb.net/audio/info/88639
+- mustafa.mp3  - مصطفى إسماعيل    - https://audio.islamweb.net/audio/info/176760
+- refaat.mp3   - محمد رفعت        - https://audio.islamweb.net/audio/info/122665
+
+Licensing basis (verified 2026-11-21): محمد رفعت (d. 1950) and محمد صديق
+المنشاوي (d. 1969) are public domain in Egypt (life + 50 years). The adhans
+of مصطفى إسماعيل (d. 1978) and محمود خليل الحصري (d. 1980) are heritage
+recordings broadcast continuously by Egyptian state radio (the National
+Media Authority added مصطفى إسماعيل's adhan to the Quran Radio adhan lineup
+in 2025) and published as free downloads by IslamWeb, but carry no explicit
+redistribution license; they ship with attribution, and this is the
+residual risk we accept knowingly. The app is free and non-commercial.
 
 The fallback `assets/sounds/bismillah.wav` (used only if a reciter clip is
 missing) is the earlier eSpeak NG TTS clip. eSpeak NG is GPL as a *program*;
