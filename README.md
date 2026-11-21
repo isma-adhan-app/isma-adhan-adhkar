@@ -26,7 +26,10 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
 - Friday reminder for Surat Al-Kahf
 - system tray presence, optional autostart with Windows
 - startup Bismillah: بسم الله الرحمن الرحيم plays on launch before any other
-  sound (bundled clip, generated with the same TTS pipeline)
+  sound, recited by a real reciter chosen in settings: الحصري / البنا /
+  عبد الباسط عبد الصمد / المنشاوي / عشوائي - a random reciter each launch
+  (licensing documented below); the announcement then speaks the day, the
+  Gregorian and Hijri dates, and the next prayer
 - Hijri + Gregorian date display in Arabic words (screen-reader friendly
   read-only field); Hijri uses the standard tabular (Kuwaiti) conversion and
   may differ by +/-1 day from moon-sighting announcements
@@ -97,13 +100,27 @@ Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 
 ## Bundled audio licensing
 
-The 14 clips in `assets/sounds/adhkar_bundled/` and the startup
-`assets/sounds/bismillah.wav` are generated with
-eSpeak NG (`tools/make_adhkar.py`, texts in `tools/adhkar_texts.json`).
-eSpeak NG is GPL as a *program*; its license places no restrictions on audio
-output generated with it, so these generated clips may be redistributed with
-the app. We chose TTS over recorded recitations because no recording we could
-verify carried a clearly redistributable license.
+Startup Bismillah recordings (`assets/sounds/bismillah/*.mp3`) are the
+Al-Fatiha verse-1 clips from EveryAyah's verse-by-verse archives:
+
+- husary.mp3    - محمود خليل الحصري  - https://everyayah.com/data/Husary_128kbps/001001.mp3
+- banna.mp3     - محمود علي البنا    - https://everyayah.com/data/mahmoud_ali_al_banna_32kbps/001001.mp3
+- abdulbasit.mp3 - عبد الباسط عبد الصمد - https://everyayah.com/data/Abdul_Basit_Murattal_64kbps/001001.mp3
+- minshawi.mp3  - محمد صديق المنشاوي - https://everyayah.com/data/Minshawy_Murattal_128kbps/001001.mp3
+
+Licensing basis (verified 2026-11-21): Islamic Network (islamic.network, the
+organization that mirrors these exact files through the AlQuran Cloud CDN)
+states that these classical reciter recordings sourced from everyayah.com are
+public domain, may be redistributed inside applications, and that attribution
+is expected - given above and here. The app is free and non-commercial. See:
+https://community.islamic.network/d/231-clarification-on-licensing-and-usage-rights-for-quran-recitation-api
+
+The 14 clips in `assets/sounds/adhkar_bundled/` and the fallback
+`assets/sounds/bismillah.wav` (used only if a reciter clip is missing) are
+generated with eSpeak NG (`tools/make_adhkar.py`, texts in
+`tools/adhkar_texts.json`). eSpeak NG is GPL as a *program*; its license
+places no restrictions on audio output generated with it, so these generated
+clips may be redistributed with the app.
 
 Location data: GeoNames (cities15000, countryInfo - CC-BY 4.0,
 geonames.org) and the CLDR Windows-zones mapping (unicode.org license).
