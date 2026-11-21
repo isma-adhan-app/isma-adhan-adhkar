@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
 
 from isma_adhan import win32_integration as w32
@@ -9,18 +10,23 @@ from isma_adhan import win32_integration as w32
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_module_imports_and_noops_off_windows():
-    # On Linux (CI unit tests) both hooks must be harmless no-ops.
-    assert w32.create_installer_mutex() is False
+def test_hooks_behave_per_platform():
+    class _Frame:  # minimal stand-in; must never get a real quit call
+        def GetHandle(self):
+            raise AssertionError("no real window handle in unit tests")
 
-    class _Frame:  # minimal stand-in; must not be touched off Windows
-        def GetHandle(self):  # pragma: no cover - only used on win32
-            raise AssertionError("should not be called off Windows")
+        def on_quit(self, _e):
+            raise AssertionError("no quit in unit tests")
 
-        def on_quit(self, _e):  # pragma: no cover
-            raise AssertionError("should not be called off Windows")
-
-    assert w32.install_quit_handler(_Frame()) is False
+    if sys.platform == "win32":
+        # The mutex is really held (the installer detection point); a bogus
+        # frame must degrade to False, never raise.
+        assert w32.create_installer_mutex() is True
+        assert w32.install_quit_handler(_Frame()) is False
+    else:
+        # Off Windows both hooks are harmless no-ops.
+        assert w32.create_installer_mutex() is False
+        assert w32.install_quit_handler(_Frame()) is False
 
 
 def test_installer_uses_same_mutex_and_message_names():
