@@ -68,6 +68,10 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
 
+      - name: Lint installer script (catch iss typos before iscc)
+        shell: pwsh
+        run: python tools/check_iss.py
+
       - name: Compile installer
         run: iscc build\installer.iss
 
