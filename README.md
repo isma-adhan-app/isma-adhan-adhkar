@@ -18,9 +18,9 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
 - pre-adhan reminder, configurable 5-60 minutes before (steps of 5), per prayer
 - post-prayer adhkar reminder, configurable 5-60 minutes after (steps of 5),
   per prayer - plays a dhikr clip so the adhkar after prayer are not missed
-- 14 short adhkar clips bundled with the app (Arabic TTS, generated at build
-  time - see "Bundled audio licensing" below); the user can still add their
-  own clips on top
+- 14 adhkar clips bundled with the app: real recitations from the Hisn
+  al-Muslim audiobook (see "Bundled audio licensing" below); the user can
+  still add their own clips on top
 - audio adhkar clips played in random order every 10/15/20/30 minutes,
   with quiet hours (default 23:00-05:00, toggleable)
 - Friday reminder for Surat Al-Kahf
@@ -90,8 +90,8 @@ Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
   Windows. First Windows run may surface small UI bugs.
 - No recorded adhan ships with the app (copyright); the user adds their own
   in the الأصوات tab. Until then the app chimes and speaks the prayer name.
-- The bundled adhkar clips are synthetic speech (eSpeak NG Arabic). They are
-  intelligible but robotic - a deliberate licensing choice, see below.
+- The bundled adhkar are chapter-length recordings (17 seconds to 8
+  minutes), not one-dhikr snippets; the rotation plays one at a time.
 - Maghrib is computed exactly at sunset per the Egyptian method.
 - Hijri date is the civil/astronomical calendar and can differ by +/-1 day
   from moon-sighting announcements.
@@ -115,12 +115,21 @@ public domain, may be redistributed inside applications, and that attribution
 is expected - given above and here. The app is free and non-commercial. See:
 https://community.islamic.network/d/231-clarification-on-licensing-and-usage-rights-for-quran-recitation-api
 
-The 14 clips in `assets/sounds/adhkar_bundled/` and the fallback
-`assets/sounds/bismillah.wav` (used only if a reciter clip is missing) are
-generated with eSpeak NG (`tools/make_adhkar.py`, texts in
-`tools/adhkar_texts.json`). eSpeak NG is GPL as a *program*; its license
-places no restrictions on audio output generated with it, so these generated
-clips may be redistributed with the app.
+The 14 clips in `assets/sounds/adhkar_bundled/` are chapters of the Hisn
+al-Muslim audiobook read by Sheikh سليمان الشويهي (Sulaiman Al-Shuwayhi),
+reviewed by د. سعيد بن علي بن وهف القحطاني and published by IslamHouse
+(item https://islamhouse.com/ar/audios/2799103, one mp3 per chapter on
+d1.islamhouse.com; `tools/fetch_adhkar.py` re-downloads them with sha256
+checks). Licensing basis (verified 2026-11-21): IslamHouse's site policy
+(https://d1.islamhouse.com/html/faq.htm) allows using and republishing site
+content by any means, unchanged, with attribution to the source. The clips
+ship byte-identical to the published files, attribution is given here and
+in this section, and the app is free and non-commercial.
+
+The fallback `assets/sounds/bismillah.wav` (used only if a reciter clip is
+missing) is the earlier eSpeak NG TTS clip. eSpeak NG is GPL as a *program*;
+its license places no restrictions on audio output generated with it, so
+this generated clip may be redistributed with the app.
 
 Location data: GeoNames (cities15000, countryInfo - CC-BY 4.0,
 geonames.org) and the CLDR Windows-zones mapping (unicode.org license).

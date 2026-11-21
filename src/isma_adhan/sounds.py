@@ -51,8 +51,9 @@ def display_name(path: Path) -> str:
 def bundled_adhkar() -> list:
     """Bundled dhikr clips shipped with the app: [(path, arabic_text)].
 
-    Generated at build time (eSpeak NG Arabic TTS); the mapping file records
-    the text of each clip so the UI/log can show what is playing.
+    Real recitations from the Hisn al-Muslim audiobook (Sheikh Sulaiman
+    Al-Shuwayhi, via IslamHouse - see README licensing); the mapping file
+    records the chapter title of each clip so the UI/log can show it.
     """
     import json
 
