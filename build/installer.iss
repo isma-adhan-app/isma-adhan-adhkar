@@ -28,6 +28,11 @@ CloseApplications=yes
 CloseApplicationsFilter=*.exe
 RestartApplications=no
 AppMutex=IsmaAdhanAppMutex
+VersionInfoVersion={#AppVersion}
+VersionInfoCompany=IsmaAdhan
+VersionInfoDescription=Isma Adhan wa Adhkar Setup
+VersionInfoProductName=Isma Adhan wa Adhkar
+VersionInfoProductVersion={#AppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

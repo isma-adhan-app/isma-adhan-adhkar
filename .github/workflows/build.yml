@@ -124,6 +124,7 @@ jobs:
             Add-Content e2e-report.txt "FAIL upgrade-over-running-same-version: $_"
             Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
             if (Test-Path e2e3.log) { Add-Content e2e-report.txt (Get-Content e2e3.log -Tail 30 | Out-String) }
+            Add-Content e2e-report.txt (Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Tail 40 -ErrorAction SilentlyContinue | Out-String)
           }
 
       - name: E2E 4 - app still healthy after the over-install
@@ -184,6 +185,7 @@ jobs:
             Add-Content e2e-report.txt "FAIL upgrade-over-running-old-version: $_"
             Get-Process IsmaAdhan -ErrorAction SilentlyContinue | Stop-Process -Force
             if (Test-Path e2e6.log) { Add-Content e2e-report.txt (Get-Content e2e6.log -Tail 30 | Out-String) }
+            Add-Content e2e-report.txt (Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Tail 40 -ErrorAction SilentlyContinue | Out-String)
           }
 
       - name: E2E 7 - upgraded-from-old app passes its self-test

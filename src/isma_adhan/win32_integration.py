@@ -42,7 +42,10 @@ def create_installer_mutex() -> bool:
     if _MUTEX_HANDLE:
         return True
     try:
-        handle = ctypes.windll.kernel32.CreateMutexW(None, False, MUTEX_NAME)
+        kernel32 = ctypes.windll.kernel32
+        kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
+        kernel32.CreateMutexW.restype = ctypes.c_void_p
+        handle = kernel32.CreateMutexW(None, False, MUTEX_NAME)
         if not handle:
             return False
         _MUTEX_HANDLE = handle
@@ -64,6 +67,15 @@ def install_quit_handler(frame, log=None) -> bool:
         return False
     try:
         user32 = ctypes.windll.user32
+        # Explicit prototypes: without them ctypes truncates 64-bit pointer
+        # args/returns to c_int, and the truncated original WndProc pointer
+        # makes CallWindowProcW jump to garbage (0xC0000409, ASLR-dependent).
+        user32.RegisterWindowMessageW.argtypes = [ctypes.c_wchar_p]
+        user32.RegisterWindowMessageW.restype = ctypes.c_uint
+        user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+        user32.SetWindowLongPtrW.restype = ctypes.c_void_p
+        user32.CallWindowProcW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, _WPARAM, _LPARAM]
+        user32.CallWindowProcW.restype = _LRESULT
         _QUIT_MESSAGE_ID = user32.RegisterWindowMessageW(QUIT_MESSAGE_NAME)
         if not _QUIT_MESSAGE_ID:
             return False

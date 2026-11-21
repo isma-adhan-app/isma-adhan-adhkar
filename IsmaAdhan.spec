@@ -43,6 +43,7 @@ exe = EXE(
     upx=False,
     console=False,
     icon="assets/icon.ico",
+    version="build/version_info.txt",
 )
 coll = COLLECT(
     exe,
