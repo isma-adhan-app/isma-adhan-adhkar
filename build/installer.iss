@@ -54,7 +54,7 @@ Filename: "{app}\{#AppExe}"; Description: "تشغيل البرنامج الآن 
 ; settings live in %APPDATA%\IsmaAdhan and are deliberately kept.
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\*"
-Type: dirsifempty; Name: "{app}"
+Type: dirifempty; Name: "{app}"
 
 [Code]
 const
