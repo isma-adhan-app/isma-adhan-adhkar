@@ -58,6 +58,7 @@ def begin(lang_index):
     ui.load_settings = lambda: Settings(language=lang)
     p,s = Player(),Speaker()
     f = ui.MainFrame(p,s)
+    f.notify = lambda message: None
     state.update(frame=f,lang=lang,index=lang_index)
     f.Show()
     f.Raise()
@@ -72,6 +73,8 @@ def capture(index):
     f=state['frame']
     lang=state['lang']
     assert f.GetTitle() == S.APP_NAME
+    desktop=wx.Display(0).GetClientArea()
+    assert desktop.Contains(f.GetScreenRect()), 'window extends beyond the usable desktop'
     assert S.MSG_NO_ADHAN not in f.log_box.GetValue()
     assert snd_default_label() == f.adhan_assign["all"].GetStringSelection()
     assert f.country_choice.GetStringSelection() == ('مصر' if lang=='ar' else 'Egypt')
@@ -87,7 +90,12 @@ def capture(index):
 
 def bottom():
     f=state['frame']
-    snap(f,state['lang']+'-settings-bottom')
+    snap(f,state["lang"]+"-settings-bottom")
+    target=f.btn_check_update.GetScreenRect()
+    area=wx.Display(0).GetClientArea()
+    assert area.y <= target.y and target.bottom <= area.bottom, 'update button is offscreen'
+    page=f.notebook.GetCurrentPage().GetScreenRect()
+    assert page.y <= target.y and target.bottom <= page.bottom, 'update button is not scrolled into view'
     step(tab,2)
 
 def inspect_dialog():

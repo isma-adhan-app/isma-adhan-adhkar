@@ -60,7 +60,11 @@ def _layout_dir():
 
 class MainFrame(wx.Frame):
     def __init__(self, player, speaker):
-        super().__init__(None, title=S.APP_NAME, size=(900, 820))
+        area = wx.Display(0).GetClientArea()
+        initial_size = (min(900, area.width - 20), min(820, area.height - 20))
+        super().__init__(None, title=S.APP_NAME, size=initial_size)
+        self.SetPosition((area.x + (area.width - initial_size[0]) // 2,
+                          area.y + (area.height - initial_size[1]) // 2))
         self.SetLayoutDirection(_layout_dir())
 
         self.settings = load_settings()
@@ -218,9 +222,29 @@ class MainFrame(wx.Frame):
         page.SetSizer(box)
         self.notebook.AddPage(page, S.TAB_HOME)
 
+    def _on_scrolled_focus(self, event, page):
+        child = event.GetWindow()
+        event.Skip()
+
+        def reveal():
+            if not page or not child:
+                return
+            origin = page.ClientToScreen((0, 0))
+            rect = child.GetScreenRect()
+            top = rect.y - origin.y
+            bottom = top + rect.height
+            height = page.GetClientSize().height
+            delta = bottom - height + 8 if bottom > height - 8 else (top - 8 if top < 8 else 0)
+            if delta:
+                unit = page.GetScrollPixelsPerUnit()[1] or 20
+                steps = (delta + unit - 1) // unit if delta > 0 else delta // unit
+                page.Scroll(-1, max(0, page.GetViewStart()[1] + steps))
+        wx.CallAfter(reveal)
+
     def _build_settings_tab(self):
         page = wx.ScrolledWindow(self.notebook)
         page.SetScrollRate(0, 20)
+        page.Bind(wx.EVT_CHILD_FOCUS, lambda e, p=page: self._on_scrolled_focus(e, p))
         page.SetLayoutDirection(_layout_dir())
         box = wx.BoxSizer(wx.VERTICAL)
         s = self.settings
@@ -396,6 +420,7 @@ class MainFrame(wx.Frame):
     def _build_sounds_tab(self):
         page = wx.ScrolledWindow(self.notebook)
         page.SetScrollRate(0, 20)
+        page.Bind(wx.EVT_CHILD_FOCUS, lambda e, p=page: self._on_scrolled_focus(e, p))
         page.SetLayoutDirection(_layout_dir())
         box = wx.BoxSizer(wx.VERTICAL)
 
