@@ -331,7 +331,7 @@ def alert_display(kind: str, value: "str | None") -> str:
     """Arabic label for a stored alert-sound entry, for the settings UI."""
     if kind == "post_adhkar":
         if not value:
-            return "تدوير مكتبة الأذكار"
+            return S.SND_ROTATION
         if value == ALERT_RANDOM_TOKEN:
             return S.OPT_RANDOM
         if value.startswith(ALERT_BUNDLED_PREFIX):

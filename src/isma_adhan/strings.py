@@ -44,6 +44,9 @@ def __getattr__(name: str):
 
 
 _AR = {
+    "SND_ROTATION": 'تدوير مكتبة الأذكار',
+    "SND_UNAVAILABLE": 'غير متاح: {name}',
+    "SND_BUNDLED_DEFAULT": 'الافتراضي المرفق: {name}',
     "APP_NAME": "اسمع أذان وأذكار",
     "APP_TAGLINE": "أوقات الصلاة والأذان والأذكار",
     "MENU_FILE": "ملف",
@@ -105,7 +108,7 @@ _AR = {
     "BTN_PREVIEW": "استماع",
     "MSG_ADDED": "تمت إضافة الملف",
     "MSG_ADHAN_SET": "تم تعيين صوت الأذان",
-    "MSG_NO_ADHAN": "لم يتم اختيار صوت أذان. سيُستخدم تنبيه صوتي مع نطق اسم الصلاة.",
+    "MSG_NO_ADHAN": 'صوت الأذان غير متاح. سيُستخدم صوت تنبيه بديل.',
     "TRAY_SHOW": "فتح النافذة",
     "TRAY_PLAY": "تشغيل الأذان",
     "TRAY_QUIT": "خروج",
@@ -201,6 +204,9 @@ _AR = {
 }
 
 _EN = {
+    "SND_ROTATION": 'Rotate the adhkar library',
+    "SND_UNAVAILABLE": 'Unavailable: {name}',
+    "SND_BUNDLED_DEFAULT": 'Bundled default: {name}',
     "APP_NAME": "Isma Adhan & Adhkar",
     "APP_TAGLINE": "Prayer times, adhan and adhkar",
     "MENU_FILE": "File",
@@ -262,7 +268,7 @@ _EN = {
     "BTN_PREVIEW": "Preview",
     "MSG_ADDED": "File added",
     "MSG_ADHAN_SET": "Adhan sound set",
-    "MSG_NO_ADHAN": "No adhan sound chosen. A tone alert with the spoken prayer name will be used.",
+    "MSG_NO_ADHAN": 'Adhan audio is unavailable. A fallback tone will be used.',
     "TRAY_SHOW": "Open window",
     "TRAY_PLAY": "Play adhan",
     "TRAY_QUIT": "Exit",
@@ -358,6 +364,9 @@ _EN = {
 }
 
 _FR = {
+    "SND_ROTATION": 'Rotation de la bibliothèque des adhkar',
+    "SND_UNAVAILABLE": 'Indisponible : {name}',
+    "SND_BUNDLED_DEFAULT": 'Son fourni par défaut : {name}',
     "APP_NAME": "Isma Adhan & Adhkar",
     "APP_TAGLINE": "Heures de prière, adhan et adhkar",
     "MENU_FILE": "Fichier",
@@ -419,7 +428,7 @@ _FR = {
     "BTN_PREVIEW": "Écouter",
     "MSG_ADDED": "Fichier ajouté",
     "MSG_ADHAN_SET": "Son d'adhan défini",
-    "MSG_NO_ADHAN": "Aucun son d'adhan choisi. Une alerte sonore avec le nom de la prière annoncé sera utilisée.",
+    "MSG_NO_ADHAN": "Le son de l'adhan est indisponible. Une tonalité sera utilisée.",
     "TRAY_SHOW": "Ouvrir la fenêtre",
     "TRAY_PLAY": "Jouer l'adhan",
     "TRAY_QUIT": "Quitter",

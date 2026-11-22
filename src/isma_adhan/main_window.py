@@ -96,7 +96,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_CLOSE, self.on_close)
 
         self._refresh_day()
-        if not self.settings.adhan_sounds.get("all"):
+        if snd.resolve_adhan(self.settings.adhan_sounds.get("all"), self.dirs["adhan"]) is None:
             self.log(S.MSG_NO_ADHAN)
 
     # ------------------------------------------------------------------ UI
@@ -553,7 +553,12 @@ class MainFrame(wx.Frame):
                 ui["list"].Set([S.OPT_RANDOM_ALERT] + names)
             target = self._alert_settings_dict(kind)
             for key, choice in ui["assign"].items():
-                default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
+                if key != "all":
+                    default_label = S.OPT_DEFAULT
+                elif kind == "post_adhkar":
+                    default_label = S.SND_ROTATION
+                else:
+                    default_label = S.tr("SND_BUNDLED_DEFAULT").format(name=snd.alert_clip_name(kind, snd.alert_default_key(kind)))
                 choice.Set([default_label, S.OPT_RANDOM_ALERT] + names)
                 current = target.get(key, "")
                 idx = 0
@@ -832,7 +837,7 @@ class MainFrame(wx.Frame):
         names = [label for _, label in bundled_a] + [snd.display_name(p) for p in user_files]
         self.adhan_list.Set([S.OPT_RANDOM_ADHAN] + names)
         for key, choice in getattr(self, "adhan_assign", {}).items():
-            default_label = S.OPT_NONE if key == "all" else S.OPT_DEFAULT
+            default_label = S.tr("SND_BUNDLED_DEFAULT").format(name=snd.adhan_voice_name(snd.ADHAN_DEFAULT_VOICE)) if key == "all" else S.OPT_DEFAULT
             choice.Set([default_label, S.OPT_RANDOM_ADHAN] + names)
             current = self.settings.adhan_sounds.get(key, "")
             idx = 0
@@ -840,15 +845,21 @@ class MainFrame(wx.Frame):
                 idx = 1
             elif current:
                 for i, p in enumerate(self._adhan_files):
-                    if str(p) == current:
+                    if str(p) == current or snd.resolve_adhan(current, self.dirs["adhan"]) == p:
                         idx = i + 2
                         break
+            if current and idx == 0:
+                choice.Append(S.tr("SND_UNAVAILABLE").format(name=snd.adhan_display(current)))
+                idx = choice.GetCount() - 1
             choice.SetSelection(idx)
         bundled = snd.bundled_adhkar()
         user_files = snd.list_sounds(self.dirs["adhkar"])
         self._adhkar_files = [p for p, _ in bundled] + user_files
         self.adhkar_list.Set([label for _, label in bundled] + [snd.display_name(p) for p in user_files])
-        current = snd.adhan_display(self.settings.adhan_sounds.get("all", ""))
+        value = self.settings.adhan_sounds.get("all", "")
+        current = snd.adhan_display(value)
+        if snd.resolve_adhan(value, self.dirs["adhan"]) is None:
+            current = S.MSG_NO_ADHAN
         self.current_adhan_label.SetLabel(f"{S.SET_ADHAN_SOUND}: {current}")
         self._refresh_alert_lists()
 

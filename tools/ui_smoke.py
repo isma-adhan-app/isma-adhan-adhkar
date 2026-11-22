@@ -44,6 +44,10 @@ def snap(frame, name):
     image = ImageGrab.grab(bbox=(rect.x, rect.y, rect.x+rect.width, rect.y+rect.height))
     image.save(OUT / (name + '.png'))
 
+def snd_default_label():
+    from isma_adhan import sounds
+    return S.tr('SND_BUNDLED_DEFAULT').format(name=sounds.adhan_voice_name(sounds.ADHAN_DEFAULT_VOICE))
+
 def begin(lang_index):
     if lang_index == 3:
         print('PASS UI smoke complete')
@@ -68,6 +72,8 @@ def capture(index):
     f=state['frame']
     lang=state['lang']
     assert f.GetTitle() == S.APP_NAME
+    assert S.MSG_NO_ADHAN not in f.log_box.GetValue()
+    assert snd_default_label() == f.adhan_assign["all"].GetStringSelection()
     assert f.country_choice.GetStringSelection() == ('مصر' if lang=='ar' else 'Egypt')
     snap(f,lang+'-'+('home','settings','sounds')[index])
     if index<2:
@@ -124,6 +130,12 @@ def exercise():
         assert len(launched)==1
     finally:
         updater.launch_installer, updater.download_async = old_launch, old_download
+    f.settings.adhan_sounds['all'] = 'missing-test-only.mp3'
+    f.refresh_sound_lists()
+    assert S.MSG_NO_ADHAN in f.current_adhan_label.GetLabel()
+    assert f.adhan_assign['all'].GetStringSelection().startswith(S.tr('SND_UNAVAILABLE').split('{')[0])
+    f.settings.adhan_sounds.pop('all')
+    f.refresh_sound_lists()
     f._confirm_exit=lambda:False
     f.Close()
     assert not f._really_quit and not f.IsBeingDeleted()
