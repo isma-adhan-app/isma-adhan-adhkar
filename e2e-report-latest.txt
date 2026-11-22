@@ -1,4 +1,4 @@
-E2E install test - run 30 commit 96c47dac17050e89cf238adf658cd610c8ffabb9
+E2E install test - run 31 commit abf8d2a268b32f244c281862b2bc83f4d2112e8a
 PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan
 PASS installed-selftest
 PASS upgrade-over-running-same-version: installer closed the running app and completed
@@ -7,6 +7,7 @@ INFO old-installer-over-running-old-app: exit=0 appSurvived=False (pre-fix behav
 PASS upgrade-over-running-old-version: fallback closed the old app and the install completed
 PASS final-selftest-after-old-to-new-upgrade
 PASS uninstall-removes-install-folder: no leftovers under %LOCALAPPDATA%\Programs\IsmaAdhan
+PASS x86-install-selftest-running-upgrade-preservation-uninstall (32-bit build exercised via WoW64 on a 64-bit runner - NOT native 32-bit Windows)
 
 --- pytest output ---
 ........................................................................ [ 54%]
@@ -17,5 +18,5 @@ src\isma_adhan\config.py:3
     Config and user sounds live in %APPDATA%\IsmaAdhan on Windows
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-132 passed, 1 warning in 1.82s
+132 passed, 1 warning in 1.32s
 
