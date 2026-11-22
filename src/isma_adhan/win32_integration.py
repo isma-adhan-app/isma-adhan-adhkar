@@ -72,8 +72,9 @@ def install_quit_handler(frame, log=None) -> bool:
         # makes CallWindowProcW jump to garbage (0xC0000409, ASLR-dependent).
         user32.RegisterWindowMessageW.argtypes = [ctypes.c_wchar_p]
         user32.RegisterWindowMessageW.restype = ctypes.c_uint
-        user32.SetWindowLongPtrW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
-        user32.SetWindowLongPtrW.restype = ctypes.c_void_p
+        set_wndproc = user32.SetWindowLongPtrW if ctypes.sizeof(ctypes.c_void_p) == 8 else user32.SetWindowLongW
+        set_wndproc.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p]
+        set_wndproc.restype = ctypes.c_void_p
         user32.CallWindowProcW.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_uint, _WPARAM, _LPARAM]
         user32.CallWindowProcW.restype = _LRESULT
         _QUIT_MESSAGE_ID = user32.RegisterWindowMessageW(QUIT_MESSAGE_NAME)
@@ -88,7 +89,8 @@ def install_quit_handler(frame, log=None) -> bool:
                 try:
                     import wx
 
-                    wx.CallAfter(frame.on_quit, None)
+                    frame._really_quit = True
+                    wx.CallAfter(frame.Close)
                 except Exception:
                     pass
                 return 0
@@ -98,7 +100,7 @@ def install_quit_handler(frame, log=None) -> bool:
 
         _WNDPROC_CALLBACK = wndproc_type(_wndproc)
         hwnd = frame.GetHandle()
-        previous = user32.SetWindowLongPtrW(
+        previous = set_wndproc(
             hwnd, _GWL_WNDPROC, ctypes.cast(_WNDPROC_CALLBACK, ctypes.c_void_p)
         )
         if not previous:

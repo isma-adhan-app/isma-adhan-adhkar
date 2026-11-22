@@ -51,6 +51,59 @@ def run_self_test() -> int:
             assert path.exists() and path.stat().st_size > 2000, f"bad clip {path}"
             assert text.strip(), f"clip without text: {path}"
 
+    @check("translations-complete")
+    def _():
+        from . import strings
+
+        ar = strings._AR
+        for code, table in strings._TABLES.items():
+            missing = sorted(set(ar) - set(table))
+            extra = sorted(set(table) - set(ar))
+            assert not missing, f"{code} missing keys: {missing}"
+            assert not extra, f"{code} unknown keys: {extra}"
+        for code in strings.LANGUAGES:
+            strings.set_language(code)
+            assert strings.tr("APP_NAME").strip(), f"empty APP_NAME in {code}"
+            assert "{prayer}" not in strings.msg_adhan_now("X"), f"format broken in {code}"
+        strings.set_language("ar")
+        assert strings.prayer_name("fajr") == "الفجر"
+        strings.set_language("en")
+        assert strings.prayer_name("fajr") == "Fajr"
+        strings.set_language("ar")
+
+    @check("updater-module")
+    def _():
+        from . import updater
+
+        assert updater.is_newer("9.9.9") is True
+        assert updater.is_newer("0.0.1") is False
+        assert updater.current_arch() in ("x64", "x86")
+        assert updater.LATEST_JSON_URL.startswith("https://")
+
+    @check("nvda-dll-matches-arch")
+    def _():
+        import sys
+        from .sounds import resource_path
+
+        x86 = resource_path("assets", "nvda", "x86", "nvdaControllerClient.dll")
+        x64 = resource_path("assets", "nvda", "nvdaControllerClient.dll")
+        assert x86.exists() and x64.exists(), "an NVDA client DLL is missing"
+        want = x86 if sys.maxsize <= 2**32 else x64
+        assert want.exists(), f"missing DLL for this arch: {want}"
+        import struct
+        for dll_path, machine in ((x86, 0x14c), (x64, 0x8664)):
+            data = dll_path.read_bytes()
+            offset = struct.unpack_from("<I", data, 0x3c)[0]
+            assert data[offset:offset+4] == b"PE\0\0"
+            assert struct.unpack_from("<H", data, offset+4)[0] == machine
+        if sys.platform == "win32":
+            from .speech import NvdaSpeech
+            speech = NvdaSpeech()
+            speech._load()
+            assert speech._dll is not None, "matching NVDA client DLL failed to load"
+            # Loading the client is NOT a running-NVDA speech/acapela test.
+            speech._dll.nvdaController_testIfRunning()
+
     @check("world-data")
     def _():
         from . import world

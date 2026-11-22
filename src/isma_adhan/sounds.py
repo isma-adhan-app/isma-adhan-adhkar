@@ -12,6 +12,7 @@ import random
 import shutil
 import sys
 from pathlib import Path
+from . import strings as S
 
 AUDIO_EXTENSIONS = {".mp3", ".wav", ".ogg"}
 
@@ -21,6 +22,32 @@ DEFAULT_ALERT_TONES = {
     "fallback_adhan": "attention.wav",
     "kahf": "soft_chime.wav",
 }
+
+
+def localized_label(key: str, original: str) -> str:
+    from . import strings
+    common = {
+        "husary": "Mahmoud Khalil Al-Husary", "banna": "Mahmoud Ali Al-Banna",
+        "abdulbasit": "Abdul Basit Abdus Samad", "minshawi": "Muhammad Siddiq Al-Minshawi",
+        "mustafa": "Mustafa Ismail", "refaat": "Muhammad Rifaat",
+    }
+    en = dict(common, soft_chime="Soft chime", chime_up="Rising tone", chime_triple="Three soft tones",
+              iqama_tone="Short alert", iqama_low="Low tone", iqama_triple="Three short tones")
+    fr = dict(common, soft_chime="Carillon doux", chime_up="Son montant", chime_triple="Trois sons doux",
+              iqama_tone="Alerte courte", iqama_low="Son grave", iqama_triple="Trois sons courts")
+    titles_en = ["Adhkar after prayer", "Supplication before the final salam", "Salawat after tashahhud",
+                 "The merit of salawat", "Supplication between prostrations", "Seeking forgiveness and repentance",
+                 "The merit of tasbih, tahmid, tahlil and takbir", "Morning and evening adhkar", "Bedtime adhkar",
+                 "Adhkar on waking", "Adhan adhkar", "Istikhara supplication", "Supplication for worry and sadness",
+                 "Supplication in distress"]
+    titles_fr = ["Adhkar après la prière", "Invocation avant le salam final", "Salawat après le tachahhoud",
+                 "Le mérite des salawat", "Invocation entre les prosternations", "Demande de pardon et repentir",
+                 "Le mérite du tasbih, tahmid, tahlil et takbir", "Adhkar du matin et du soir", "Adhkar du coucher",
+                 "Adhkar du réveil", "Adhkar de l'adhan", "Invocation de consultation", "Invocation contre le souci et la tristesse",
+                 "Invocation dans la détresse"]
+    en.update({f"{i:02}.mp3": t for i,t in enumerate(titles_en,1)})
+    fr.update({f"{i:02}.mp3": t for i,t in enumerate(titles_fr,1)})
+    return {"en": en, "fr": fr}.get(strings.current_language(), {}).get(key, original)
 
 
 def resource_path(*parts: str) -> Path:
@@ -69,7 +96,7 @@ def bundled_adhkar() -> list:
     for name, text in data.items():
         p = base / name
         if p.exists():
-            out.append((p, text))
+            out.append((p, localized_label(name, text)))
     return out
 
 
@@ -115,7 +142,7 @@ def bismillah_path(voice: str) -> "Path | None":
 def bismillah_voice_name(voice: str) -> str:
     for k, name, *_ in BISMILLAH_VOICES:
         if k == voice:
-            return name
+            return localized_label(k, name)
     return voice
 
 
@@ -151,7 +178,7 @@ def adhan_voice_path(key: str) -> "Path | None":
 def adhan_voice_name(key: str) -> str:
     for k, name, *_ in ADHAN_VOICES:
         if k == key:
-            return name
+            return localized_label(k, name)
     return key
 
 
@@ -161,7 +188,7 @@ def bundled_adhan() -> list:
     for key, name, *_ in ADHAN_VOICES:
         p = adhan_voice_path(key)
         if p is not None:
-            out.append((p, name))
+            out.append((p, localized_label(key, name)))
     return out
 
 
@@ -191,7 +218,7 @@ def adhan_display(value: "str | None") -> str:
     if not value:
         return adhan_voice_name(ADHAN_DEFAULT_VOICE)
     if value == ADHAN_RANDOM_TOKEN:
-        return "عشوائي"
+        return S.OPT_RANDOM
     if value.startswith(ADHAN_BUNDLED_PREFIX):
         return adhan_voice_name(value[len(ADHAN_BUNDLED_PREFIX):])
     return display_name(Path(value))
@@ -235,7 +262,7 @@ def alert_clip_path(kind: str, key: str) -> "Path | None":
 def alert_clip_name(kind: str, key: str) -> str:
     for k, name, _f in ALERT_BUNDLED.get(kind, []):
         if k == key:
-            return name
+            return localized_label(k, name)
     return key
 
 
@@ -249,7 +276,7 @@ def bundled_alerts(kind: str) -> list:
     for key, name, _f in ALERT_BUNDLED.get(kind, []):
         p = alert_clip_path(kind, key)
         if p is not None:
-            out.append((p, name))
+            out.append((p, localized_label(key, name)))
     return out
 
 
@@ -306,7 +333,7 @@ def alert_display(kind: str, value: "str | None") -> str:
         if not value:
             return "تدوير مكتبة الأذكار"
         if value == ALERT_RANDOM_TOKEN:
-            return "عشوائي"
+            return S.OPT_RANDOM
         if value.startswith(ALERT_BUNDLED_PREFIX):
             key = value[len(ALERT_BUNDLED_PREFIX):]
             for p, text in bundled_adhkar():
@@ -317,7 +344,7 @@ def alert_display(kind: str, value: "str | None") -> str:
     if not value:
         return alert_clip_name(kind, alert_default_key(kind))
     if value == ALERT_RANDOM_TOKEN:
-        return "عشوائي"
+        return S.OPT_RANDOM
     if value.startswith(ALERT_BUNDLED_PREFIX):
         return alert_clip_name(kind, value[len(ALERT_BUNDLED_PREFIX):])
     return display_name(Path(value))

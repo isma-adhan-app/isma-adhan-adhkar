@@ -8,16 +8,26 @@ from __future__ import annotations
 import re
 from datetime import date, timedelta
 
+from . import strings
 from .hijri import (
-    GREGORIAN_MONTHS_AR,
-    HIJRI_MONTHS_AR,
+    gregorian_month_name,
     gregorian_to_hijri,
+    hijri_month_name,
     hijri_to_gregorian,
     weekday_label,
 )
-from .prayer_times import ARABIC_NAMES, METHODS, PRAYERS
+from .prayer_times import PRAYERS
 
-BAD_DATE_MSG = "لم أفهم التاريخ. اكتبه مثل 21/11/2026 للميلادي أو 1/9/1447 للهجري."
+def bad_date_msg() -> str:
+    return strings.tr("MSG_CONVERT_BAD")
+
+
+def __getattr__(name: str):
+    # `from .date_tools import BAD_DATE_MSG` resolves in the language active
+    # at import time (Arabic by default, which is what the tests compare).
+    if name == "BAD_DATE_MSG":
+        return bad_date_msg()
+    raise AttributeError(name)
 
 
 def _parse_dmy(text: str) -> "tuple[int, int, int] | None":
@@ -35,8 +45,9 @@ def _parse_dmy(text: str) -> "tuple[int, int, int] | None":
 
 
 def convert_date_text(text: str) -> str:
-    """Convert a typed date between calendars; returns a spoken-ready arabic
-    sentence, or BAD_DATE_MSG when the input is unreadable/ambiguous.
+    """Convert a typed date between calendars; returns a spoken-ready
+    sentence in the current UI language, or the bad-date message when the
+    input is unreadable/ambiguous.
 
     Direction heuristic: year >= 1700 means a Gregorian date, year < 1700 a
     Hijri one (Hijri years today are ~1446; Gregorian are ~2026 - they never
@@ -44,24 +55,22 @@ def convert_date_text(text: str) -> str:
     """
     parsed = _parse_dmy(text)
     if parsed is None:
-        return BAD_DATE_MSG
+        return bad_date_msg()
     d, m, y = parsed
     try:
         if y >= 1700:
             date(y, m, d)  # validates
             hy, hm, hd = gregorian_to_hijri(y, m, d)
-            return (
-                f"{d} {GREGORIAN_MONTHS_AR[m - 1]} {y} م "
-                f"يوافق {hd} {HIJRI_MONTHS_AR[hm - 1]} {hy} هـ."
-            )
+            return strings.tr("MSG_CONVERT_G2H").format(
+                d=d, gmonth=gregorian_month_name(m), y=y,
+                hd=hd, hmonth=hijri_month_name(hm), hy=hy)
         gy, gm, gd = hijri_to_gregorian(y, m, d)
         date(gy, gm, gd)  # validates
-        return (
-            f"{d} {HIJRI_MONTHS_AR[m - 1]} {y} هـ "
-            f"يوافق {gd} {GREGORIAN_MONTHS_AR[gm - 1]} {gy} م."
-        )
+        return strings.tr("MSG_CONVERT_H2G").format(
+            d=d, hmonth=hijri_month_name(m), y=y,
+            gd=gd, gmonth=gregorian_month_name(gm), gy=gy)
     except ValueError:
-        return BAD_DATE_MSG
+        return bad_date_msg()
 
 
 def month_export_lines(calc, year: int, month: int, city: str, country: str, method: str) -> list:
@@ -70,20 +79,22 @@ def month_export_lines(calc, year: int, month: int, city: str, country: str, met
     calc: PrayerTimeCalculator; each line carries weekday, gregorian, hijri
     and all six times so the file reads well top to bottom in NVDA.
     """
-    method_ar = METHODS.get(method, {}).get("label_ar", method)
+    method_name = strings.method_label(method)
     out = [
-        f"مواقيت الصلاة لشهر {GREGORIAN_MONTHS_AR[month - 1]} {year} م - {city}، {country}",
-        f"طريقة الحساب: {method_ar}",
+        strings.tr("MSG_EXPORT_HEADER").format(
+            month=gregorian_month_name(month), year=year, city=city, country=country),
+        strings.tr("MSG_EXPORT_METHOD").format(method=method_name),
         "",
     ]
     day = date(year, month, 1)
     while day.month == month:
         times = calc.for_date(day).times
         hy, hm, hd = gregorian_to_hijri(day.year, day.month, day.day)
-        parts = " | ".join(f"{ARABIC_NAMES[p]} {times[p].strftime('%H:%M')}" for p in PRAYERS)
+        parts = " | ".join(
+            f"{strings.prayer_name(p)} {times[p].strftime('%H:%M')}" for p in PRAYERS)
         out.append(
-            f"{weekday_label(day)} {day.day} {GREGORIAN_MONTHS_AR[month - 1]} {day.year} م"
-            f" ({hd} {HIJRI_MONTHS_AR[hm - 1]} {hy} هـ):"
+            f"{weekday_label(day)} {day.day} {gregorian_month_name(month)} {day.year}"
+            f" ({hd} {hijri_month_name(hm)} {hy}):"
         )
         out.append(parts)
         day += timedelta(days=1)

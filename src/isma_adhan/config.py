@@ -58,6 +58,8 @@ class Settings:
     lng: float = 31.2357
     timezone_name: str = "Africa/Cairo"
     method: str = "egypt"
+    # v1.8: UI language - "auto" follows the Windows display language
+    language: str = "auto"
 
     # per-prayer alerts (minutes; 0 = off for pre/post)
     pre_adhan_per: dict = field(default_factory=lambda: _per_prayer(5))

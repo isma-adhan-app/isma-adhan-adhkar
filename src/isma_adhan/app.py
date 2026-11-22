@@ -20,6 +20,26 @@ from . import sounds as snd
 from . import strings as S
 
 
+def _resolve_startup_language() -> str:
+    """Pick the UI language once, before any window exists: the saved setting
+    wins; "auto" (and first run) follows the Windows display language."""
+    try:
+        from .config import load_settings
+
+        saved = load_settings().language
+    except Exception:
+        saved = "auto"
+    if saved in S.LANGUAGES:
+        return saved
+    try:
+        import ctypes
+
+        langid = ctypes.windll.kernel32.GetUserDefaultUILanguage()
+        return S.language_from_langid(langid)
+    except Exception:
+        return "ar"
+
+
 def _log(line: str) -> None:
     bootstrap.milestone(line)
 
@@ -30,7 +50,7 @@ class TrayIcon(wx.adv.TaskBarIcon):
         self.frame = frame
         icon_path = snd.resource_path("assets", "icon.ico")
         if icon_path.exists():
-            self.SetIcon(wx.Icon(str(icon_path), wx.BITMAP_TYPE_ICO), S.TRAY_TOOLTIP)
+            self.SetIcon(wx.Icon(str(icon_path), wx.BITMAP_TYPE_ICO), S.APP_NAME)
         self.Bind(wx.adv.EVT_TASKBAR_LEFT_DOWN, lambda e: self.frame.show_window())
 
     def CreatePopupMenu(self):
@@ -76,13 +96,13 @@ def _after_window_shown(frame) -> None:
     else:
         _startup_chime()
     if bootstrap.previous_run_crashed():
-        msg = "آخر محاولة تشغيل توقفت قبل اكتمال فتح البرنامج. التفاصيل محفوظة في ملف app.log."
+        msg = S.MSG_CRASH_INCOMPLETE
         frame.log(msg)
         _log("startup: previous launch did not reach the window")
     from .audio import NullPlayer
 
     if isinstance(frame.player, NullPlayer):
-        msg = "تعذر تشغيل الصوت على هذا الجهاز. التنبيهات الصوتية لن تعمل حتى يصلح الصوت."
+        msg = S.MSG_AUDIO_DEVICE_FAIL
         frame.log(msg)
         _log(f"startup: audio unavailable: {frame.player.reason}")
     try:
@@ -132,6 +152,9 @@ def run(minimized: bool = False) -> int:
     from . import win32_integration
 
     _log("startup: imports ok")
+    language = _resolve_startup_language()
+    S.set_language(language)
+    _log(f"startup: ui language {language}")
     if win32_integration.create_installer_mutex():
         _log("startup: installer mutex held")
     app = wx.App()
@@ -156,6 +179,7 @@ def run(minimized: bool = False) -> int:
             frame.show_window()
             _log("startup: window shown")
         wx.CallAfter(_after_window_shown, frame)
+        wx.CallLater(60_000, frame.on_check_update, False)  # silent check once a minute in
         app.MainLoop()
         _log("app exited normally")
         return 0
@@ -164,8 +188,7 @@ def run(minimized: bool = False) -> int:
         _log("FATAL: " + tb)
         try:
             wx.MessageBox(
-                "حدث خطأ في البرنامج. التفاصيل محفوظة في ملف app.log داخل مجلد البرنامج في AppData.\n\n"
-                + tb.splitlines()[-1],
+                S.MSG_CRASH_ERROR.format(details=tb.splitlines()[-1]),
                 S.APP_NAME,
                 style=wx.OK | wx.ICON_ERROR,
             )

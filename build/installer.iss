@@ -1,11 +1,25 @@
 ; Inno Setup script for اسمع أذان وأذكار (IsmaAdhan)
-; Builds IsmaAdhan-Setup.exe from the PyInstaller onedir output.
-; Per-user install (no admin required) into %LOCALAPPDATA%\Programs\IsmaAdhan.
-; Compile on the CI runner with: iscc build\installer.iss
+; Builds IsmaAdhan-Setup.exe (x64) or IsmaAdhan-Setup-x86.exe from the
+; PyInstaller onedir output. Per-user install (no admin required) into
+; %LOCALAPPDATA%\Programs\IsmaAdhan.
+; Compile on the CI runner with: iscc build\installer.iss            (x64)
+;                                iscc /DArch=x86 build\installer.iss (x86)
+
+#ifndef Arch
+  #define Arch "x64"
+#endif
+
+#if Arch == "x86"
+  #define OutputSuffix "-x86"
+  #define SourceDir "..\dist\IsmaAdhan-x86"
+#else
+  #define OutputSuffix ""
+  #define SourceDir "..\dist\IsmaAdhan"
+#endif
 
 #define AppName "Isma Adhan wa Adhkar"
 #define AppNameAr "اسمع أذان وأذكار"
-#define AppVersion "1.7.0"
+#define AppVersion "1.8.0"
 #define AppExe "IsmaAdhan.exe"
 
 [Setup]
@@ -16,10 +30,14 @@ AppPublisher=IsmaAdhan
 DefaultDirName={autopf}\IsmaAdhan
 DefaultGroupName={#AppNameAr}
 OutputDir=..\dist\installer
-OutputBaseFilename=IsmaAdhan-Setup
+OutputBaseFilename=IsmaAdhan-Setup{#OutputSuffix}
+#if Arch == "x64"
+ArchitecturesAllowed=x64compatible
+#endif
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+MinVersion=10.0
 PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
 SetupIconFile=..\assets\icon.ico
@@ -39,7 +57,7 @@ VersionInfoProductVersion={#AppVersion}
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "..\dist\IsmaAdhan\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{userdesktop}\{#AppNameAr}"; Filename: "{app}\{#AppExe}"

@@ -17,9 +17,10 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          architecture: "x64"
 
       - name: Install dependencies
-        run: pip install -r requirements.txt pyinstaller pytest
+        run: pip install -r requirements.txt pyinstaller pytest pillow
 
       - name: Unit tests
         env:
@@ -30,15 +31,18 @@ jobs:
           python -m pytest tests/ -q 2>&1 | Tee-Object -FilePath pytest-output.txt
           exit $LASTEXITCODE
 
+      - name: Source GUI behavior checks (x64, isolated profile and fake audio)
+        run: python tools/ui_smoke.py ui-evidence-x64
+
       - name: Source-level entry self-test
         env:
           SDL_AUDIODRIVER: dummy
         run: python launcher.py --self-test
 
-      - name: Build onedir app
+      - name: Build onedir app (x64)
         run: pyinstaller IsmaAdhan.spec
 
-      - name: Packaged headless self-test
+      - name: Packaged headless self-test (x64)
         env:
           SDL_AUDIODRIVER: dummy
         shell: pwsh
@@ -65,6 +69,26 @@ jobs:
           Write-Host $log
           if ($log -notmatch 'startup: window shown') { Write-Warning 'window-shown milestone missing from app.log'; exit 1 }
 
+      - name: Set up 32-bit Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: "x86"
+
+      - name: Build onedir app (x86)
+        shell: pwsh
+        run: |
+          Move-Item dist\IsmaAdhan dist\IsmaAdhan-x64
+          pip install -r requirements.txt pyinstaller pillow
+          if ($LASTEXITCODE -ne 0) { throw "x86 dependencies failed" }
+          pyinstaller --clean --noconfirm --workpath build\pyinstaller-x86 IsmaAdhan.spec
+          if ($LASTEXITCODE -ne 0) { throw "x86 build failed" }
+          Move-Item dist\IsmaAdhan dist\IsmaAdhan-x86
+          Move-Item dist\IsmaAdhan-x64 dist\IsmaAdhan
+
+      - name: Source GUI behavior checks (x86 under WoW64, fake audio)
+        run: python tools/ui_smoke.py ui-evidence-x86
+
       - name: Install Inno Setup
         run: choco install innosetup --yes --no-progress
 
@@ -72,8 +96,10 @@ jobs:
         shell: pwsh
         run: python tools/check_iss.py
 
-      - name: Compile installer
-        run: iscc build\installer.iss
+      - name: Compile installers (x64 + x86)
+        run: |
+          iscc build\installer.iss
+          iscc /DArch=x86 build\installer.iss
 
       - name: E2E 1 - fresh silent install of the new build
         shell: pwsh
@@ -88,6 +114,13 @@ jobs:
             foreach ($f in @('IsmaAdhan.exe','_internal\MSVCP140.dll','_internal\python312.dll')) {
               if (-not (Test-Path (Join-Path $dir $f))) { throw "missing after install: $f" }
             }
+            $profile = "$env:APPDATA\IsmaAdhan"
+            New-Item "$profile\sounds\adhan" -ItemType Directory -Force | Out-Null
+            Copy-Item assets\sounds\soft_chime.wav "$profile\sounds\adhan\preservation-test.wav"
+            Set-Content "$profile\settings.json" '{"language":"fr","volume":37,"city":"Cairo","lat":30.0444,"lng":31.2357,"timezone_name":"Africa/Cairo"}' -Encoding utf8NoBOM
+            (Get-FileHash "$profile\settings.json").Hash | Set-Content settings-hash.txt
+            Set-Content "$profile\preservation-test.txt" 'must-survive-upgrades-and-uninstall'
+            (Get-FileHash "$profile\sounds\adhan\preservation-test.wav").Hash | Set-Content profile-hash.txt
             Add-Content e2e-report.txt 'PASS fresh-silent-install: files landed under %LOCALAPPDATA%\Programs\IsmaAdhan'
           } catch {
             Add-Content e2e-report.txt "FAIL fresh-silent-install: $_"
@@ -141,7 +174,10 @@ jobs:
             Start-Sleep -Seconds 2
             $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
             if ($log -notmatch 'self-test result: PASS') { throw 'self-test marker missing from app.log' }
-            Add-Content e2e-report.txt 'PASS post-upgrade-selftest'
+            if ((Get-FileHash "$env:APPDATA\IsmaAdhan\sounds\adhan\preservation-test.wav").Hash -ne (Get-Content profile-hash.txt)) { throw 'custom sound changed during upgrade' }
+            if ((Get-FileHash "$env:APPDATA\IsmaAdhan\settings.json").Hash -ne (Get-Content settings-hash.txt)) { throw 'settings changed during upgrade' }
+            if (-not (Test-Path "$env:APPDATA\IsmaAdhan\preservation-test.txt")) { throw 'profile marker lost' }
+            Add-Content e2e-report.txt 'PASS post-upgrade-selftest-and-custom-sound-preservation'
           } catch {
             Add-Content e2e-report.txt "FAIL post-upgrade-selftest: $_"
           }
@@ -222,6 +258,40 @@ jobs:
             Add-Content e2e-report.txt "FAIL uninstall-removes-install-folder: $_"
           }
 
+      - name: E2E 9 - 32-bit (x86) installer on this 64-bit runner via WoW64
+        shell: pwsh
+        run: |
+          $dir = "$env:LOCALAPPDATA\Programs\IsmaAdhan"
+          $inst = (Resolve-Path dist\installer\IsmaAdhan-Setup-x86.exe).Path
+          try {
+            Remove-Item $dir -Recurse -Force -ErrorAction SilentlyContinue
+            $p = Start-Process $inst -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/LOG=e2e9.log' -Wait -PassThru
+            if ($p.ExitCode -ne 0) { throw "x86 installer exit $($p.ExitCode)" }
+            if (-not (Test-Path (Join-Path $dir 'IsmaAdhan.exe'))) { throw 'x86 exe missing after install' }
+            Remove-Item "$env:APPDATA\IsmaAdhan\app.log" -ErrorAction SilentlyContinue
+            & "$dir\IsmaAdhan.exe" --self-test | Out-Null
+            Start-Sleep -Seconds 2
+            $log = Get-Content "$env:APPDATA\IsmaAdhan\app.log" -Raw -ErrorAction Stop
+            if ($log -notmatch 'self-test result: PASS') { throw 'x86 self-test marker missing' }
+            $app = Start-Process "$dir\IsmaAdhan.exe" -PassThru
+            Start-Sleep -Seconds 15
+            if ($app.HasExited) { throw "x86 GUI exited early (code $($app.ExitCode))" }
+            $again = Start-Process $inst -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+            if ($again.ExitCode -ne 0) { throw 'x86 upgrade-over-running failed' }
+            if (Get-Process -Id $app.Id -ErrorAction SilentlyContinue) { Stop-Process -Id $app.Id -Force; throw 'x86 quit hook did not stop the app' }
+            if ((Get-FileHash "$env:APPDATA\IsmaAdhan\sounds\adhan\preservation-test.wav").Hash -ne (Get-Content profile-hash.txt)) { throw 'x86 upgrade changed custom sounds' }
+
+            $un = Get-ChildItem $dir -Filter 'unins*.exe' -ErrorAction Stop | Select-Object -First 1
+            $u = Start-Process $un.FullName -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -Wait -PassThru
+            Start-Sleep -Seconds 3
+            if (Test-Path $dir) { throw 'x86 uninstall left the folder behind' }
+            if ((Get-FileHash "$env:APPDATA\IsmaAdhan\settings.json").Hash -ne (Get-Content settings-hash.txt)) { throw 'settings lost through x86 upgrade/uninstall' }
+            Add-Content e2e-report.txt 'PASS x86-install-selftest-running-upgrade-preservation-uninstall (32-bit build exercised via WoW64 on a 64-bit runner - NOT native 32-bit Windows)'
+          } catch {
+            Add-Content e2e-report.txt "FAIL x86-install-selftest-uninstall: $_"
+            if (Test-Path e2e9.log) { Add-Content e2e-report.txt (Get-Content e2e9.log -Tail 30 | Out-String) }
+          }
+
       - name: Publish e2e report to the ci-reports branch (always)
         if: always()
         shell: pwsh
@@ -245,9 +315,31 @@ jobs:
           Get-Content e2e-report.txt | Out-Host
           if (Select-String -Path e2e-report.txt -Pattern '^FAIL' -Quiet) { throw 'one or more E2E install checks failed - see report above and the ci-reports branch' }
 
-      - name: Zip portable onedir (fallback)
+      - name: Zip portable onedir (fallback, x64 + x86)
         shell: pwsh
-        run: Compress-Archive -Path dist\IsmaAdhan -DestinationPath dist\IsmaAdhan-portable.zip
+        run: |
+          Compress-Archive -Path dist\IsmaAdhan -DestinationPath dist\IsmaAdhan-portable.zip
+          Compress-Archive -Path dist\IsmaAdhan-x86 -DestinationPath dist\IsmaAdhan-portable-x86.zip
+
+      - name: Build latest.json + checksums for the in-app updater
+        shell: pwsh
+        run: |
+          $ver = (Select-String -Path src\isma_adhan\__init__.py -Pattern '__version__ = "([^"]+)"').Matches.Groups[1].Value
+          $tag = "v$ver-build$env:GITHUB_RUN_NUMBER"
+          Set-Content build-tag.txt $tag
+          $base = "https://github.com/isma-adhan-app/isma-adhan-adhkar/releases/download/$tag"
+          $h64 = (Get-FileHash dist\installer\IsmaAdhan-Setup.exe -Algorithm SHA256).Hash.ToLower()
+          $h86 = (Get-FileHash dist\installer\IsmaAdhan-Setup-x86.exe -Algorithm SHA256).Hash.ToLower()
+          $manifest = [ordered]@{
+            version = $ver
+            tag = $tag
+            installers = [ordered]@{
+              x64 = [ordered]@{ url = "$base/IsmaAdhan-Setup.exe"; sha256 = $h64 }
+              x86 = [ordered]@{ url = "$base/IsmaAdhan-Setup-x86.exe"; sha256 = $h86 }
+            }
+          }
+          ($manifest | ConvertTo-Json -Depth 5) | Set-Content latest.json -Encoding utf8
+          Get-Content latest.json | Out-Host
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -255,7 +347,12 @@ jobs:
           name: IsmaAdhan-installer
           path: |
             dist/installer/IsmaAdhan-Setup.exe
+            dist/installer/IsmaAdhan-Setup-x86.exe
             dist/IsmaAdhan-portable.zip
+            dist/IsmaAdhan-portable-x86.zip
+            latest.json
+            ui-evidence-x64/
+            ui-evidence-x86/
           retention-days: 30
 
       - name: Publish release
@@ -264,7 +361,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
         run: |
-          $tag = "v1.6-build$env:GITHUB_RUN_NUMBER"
+          $ver = (Select-String -Path src\isma_adhan\__init__.py -Pattern '__version__ = "([^"]+)"').Matches.Groups[1].Value
+          $tag = Get-Content build-tag.txt
           $e2e = Get-Content e2e-report.txt -Raw -ErrorAction SilentlyContinue
-          $notes = "Automated build $env:GITHUB_RUN_NUMBER. v1.6: the app now speaks through NVDA itself (your screen reader voice, via the official NVDA Controller Client) with SAPI as fallback - launch announcement, date converter, export confirmation and every other spoken message; the installer now closes a running instance before copying files (fixes the DeleteFile code 5 upgrade error); both executables carry full version metadata. Earlier: v1.5: monthly prayer-times export to Documents (spoken confirmation), spoken Hijri<->Gregorian date converter, notable Islamic date announced in the launch speech. v1.4: random-reciter option for the startup Bismillah. v1.3: startup Bismillah recited by a real reciter selectable in settings (Husary / Al-Banna / Abdul Basit / Minshawi, public-domain EveryAyah recordings), date now spoken at launch and shown as a prominent focusable field before the prayer list. v1.2: startup Bismillah before any other sound, Hijri + Gregorian dates in Arabic words with screen-reader access. v1.1: country+city picker for 244 countries with Windows auto-detection, per-prayer adhan sounds, per-prayer pre-adhan / iqama / post-prayer adhkar alerts, 14 bundled adhkar clips (license-safe TTS), v1.0 settings migrate automatically. Onedir + Inno Setup installer (reduced antivirus false positives). Unit tests and packaged self-test passed. Install: run IsmaAdhan-Setup.exe; portable fallback: unzip IsmaAdhan-portable.zip and run IsmaAdhan.exe inside.`n`nE2E install test on this exact installer (clean Windows runner):`n" + $e2e
-          gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/IsmaAdhan-portable.zip e2e-report.txt --title "IsmaAdhan $tag" --notes $notes --latest
+          $notes = "v$ver (build $env:GITHUB_RUN_NUMBER). First language set: Arabic, English and French, with Windows display-language detection and a manual override at the top of Settings. Other Windows languages fall back to Arabic. Restart after saving a language change. French mode uses English country/city names. Recitations remain Arabic. Translations have not had native-speaker review. Stop sound (Ctrl+S) keeps scheduling active. Alt+F4, File > Exit and tray Exit ask a spoken Yes/No confirmation and explain that alerts stop when the app exits. In-app updates check GitHub once after launch, or from Settings. Finding an update only announces it. Press Install the update now to download, verify SHA-256 and start the installer. Settings and custom audio are kept in AppData. Two installers: IsmaAdhan-Setup.exe (x64) and IsmaAdhan-Setup-x86.exe (x86). Windows 10 or newer. The x86 checks below use WoW64 on a 64-bit runner, not native 32-bit Windows. CI checks matching NVDA client DLL loading, not live NVDA/Acapela speech. No new signing approval is claimed.`n`nInstaller and preservation test results:`n" + $e2e
+          gh release create $tag dist/installer/IsmaAdhan-Setup.exe dist/installer/IsmaAdhan-Setup-x86.exe dist/IsmaAdhan-portable.zip dist/IsmaAdhan-portable-x86.zip latest.json e2e-report.txt --title "v$ver (build$env:GITHUB_RUN_NUMBER)" --notes $notes --latest

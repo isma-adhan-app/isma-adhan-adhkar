@@ -79,3 +79,10 @@ def test_speak_queues_background_and_respects_availability():
     s = Speaker(nvda=_FakeNvda())
     s.available = False
     assert s.speak("x") is False
+
+
+def test_language_specific_fallback():
+    voices = [_V('ar','Arabic'), _V('en','English'), _V('fr','French')]
+    assert pick_voice_id(voices,'en') == 'en'
+    assert pick_voice_id(voices,'fr') == 'fr'
+    assert pick_voice_id(voices,'ar') == 'ar'

@@ -1,12 +1,14 @@
-"""Main window (wxPython). Arabic, right-to-left, NVDA-friendly.
+"""Main window (wxPython). Multilingual (Arabic RTL, English, French),
+NVDA-friendly.
 
 Accessibility rules followed here:
 - every control is a native Windows control reachable with Tab alone
 - every input has a visible wx.StaticText label so screen readers announce it
 - every action exists in the menu bar and on a keyboard shortcut;
   nothing requires a mouse
-- each alert is delivered three ways: a sound, a spoken announcement (SAPI),
-  and a Windows notification, and it is appended to the on-screen log
+- each alert is delivered three ways: a sound, a spoken announcement (NVDA
+  first, SAPI fallback), and a Windows notification, and it is appended to
+  the on-screen log
 """
 from __future__ import annotations
 
@@ -21,11 +23,13 @@ import wx.adv
 from . import autostart
 from . import sounds as snd
 from . import strings as S
+from . import updater
 from . import world
+from . import __version__
 from .config import ensure_dirs, load_settings, save_settings, sound_dirs
 from .hijri import gregorian_label, hijri_label, notable_announcement, weekday_label
 from .date_tools import convert_date_text, month_export_lines
-from .prayer_times import ADHAN_PRAYERS, ARABIC_NAMES, PRAYERS, PrayerTimeCalculator
+from .prayer_times import ADHAN_PRAYERS, PRAYERS, PrayerTimeCalculator
 from .scheduler import ADHAN, ADHKAR, IQAMA, KAHF, POST_ADHKAR, PRE_ADHAN, SchedulerEngine
 
 PRE_ADHAN_CHOICES = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60]
@@ -42,13 +46,22 @@ ID_QUIT = wx.NewIdRef()
 
 
 def _minutes_label(minutes: int) -> str:
-    return S.OPT_OFF if minutes == 0 else f"{minutes} دقيقة"
+    return S.OPT_OFF if minutes == 0 else S.tr("MSG_MINUTES_COUNT").format(n=minutes)
+
+
+# v1.7 alert-sound sections map each kind to its strings key
+_ALERT_LIB_KEYS = {"pre_adhan": "SND_ALERT_LIB_PRE", "iqama": "SND_ALERT_LIB_IQAMA"}
+_ALERT_PER_KEYS = {"pre_adhan": "SND_ALERT_PER_PRE", "iqama": "SND_ALERT_PER_IQAMA"}
+
+
+def _layout_dir():
+    return wx.Layout_RightToLeft if S.current_language() == "ar" else wx.Layout_LeftToRight
 
 
 class MainFrame(wx.Frame):
     def __init__(self, player, speaker):
-        super().__init__(None, title=S.APP_NAME, size=(620, 700))
-        self.SetLayoutDirection(wx.Layout_RightToLeft)
+        super().__init__(None, title=S.APP_NAME, size=(900, 820))
+        self.SetLayoutDirection(_layout_dir())
 
         self.settings = load_settings()
         ensure_dirs()
@@ -58,6 +71,8 @@ class MainFrame(wx.Frame):
         self.speaker = speaker
         self._really_quit = False
         self._current_day = None
+        self._pending_update = None
+        self._update_busy = False
 
         self.calc = self._make_calculator()
         self.engine = SchedulerEngine(
@@ -95,7 +110,7 @@ class MainFrame(wx.Frame):
         menubar.Append(play_menu, S.MENU_PLAY)
 
         file_menu = wx.Menu()
-        file_menu.Append(int(ID_HIDE), "إخفاء النافذة")
+        file_menu.Append(int(ID_HIDE), S.MENU_HIDE)
         file_menu.Append(int(ID_QUIT), S.MENU_EXIT)
         menubar.Append(file_menu, S.MENU_FILE)
 
@@ -112,7 +127,7 @@ class MainFrame(wx.Frame):
         self.Bind(wx.EVT_MENU, lambda e: self.Hide(), id=int(ID_HIDE))
         self.Bind(wx.EVT_MENU, self.on_quit, id=int(ID_QUIT))
         self.Bind(wx.EVT_MENU, lambda e: wx.MessageBox(S.SHORTCUTS_HELP, S.MENU_SHORTCUTS, parent=self), id=int(ID_SHORTCUTS))
-        self.Bind(wx.EVT_MENU, lambda e: wx.MessageBox(S.ABOUT_TEXT, S.MENU_ABOUT, parent=self), id=int(ID_ABOUT))
+        self.Bind(wx.EVT_MENU, lambda e: wx.MessageBox(S.msg_about(__version__), S.MENU_ABOUT, parent=self), id=int(ID_ABOUT))
 
     def _build_accelerators(self):
         entries = [
@@ -128,10 +143,10 @@ class MainFrame(wx.Frame):
 
     def _build_ui(self):
         panel = wx.Panel(self)
-        panel.SetLayoutDirection(wx.Layout_RightToLeft)
+        panel.SetLayoutDirection(_layout_dir())
         root = wx.BoxSizer(wx.VERTICAL)
         self.notebook = wx.Notebook(panel)
-        self.notebook.SetLayoutDirection(wx.Layout_RightToLeft)
+        self.notebook.SetLayoutDirection(_layout_dir())
         root.Add(self.notebook, 1, wx.EXPAND | wx.ALL, 8)
         panel.SetSizer(root)
 
@@ -141,7 +156,7 @@ class MainFrame(wx.Frame):
 
     def _build_home_tab(self):
         page = wx.Panel(self.notebook)
-        page.SetLayoutDirection(wx.Layout_RightToLeft)
+        page.SetLayoutDirection(_layout_dir())
         box = wx.BoxSizer(wx.VERTICAL)
 
         big = wx.Font(16, wx.FONTFAMILY_DEFAULT, wx.FONTSTYLE_NORMAL, wx.FONTWEIGHT_BOLD)
@@ -160,7 +175,7 @@ class MainFrame(wx.Frame):
         self.date_label = wx.TextCtrl(
             page, style=wx.TE_READONLY | wx.TE_CENTER | wx.BORDER_SIMPLE
         )
-        self.date_label.SetName("التاريخ الميلادي والهجري")
+        self.date_label.SetName(S.LBL_DATE_GREG_HIJRI)
         self.date_label.SetFont(big)
         box.Add(self.date_label, 0, wx.ALL | wx.EXPAND, 8)
 
@@ -206,18 +221,27 @@ class MainFrame(wx.Frame):
     def _build_settings_tab(self):
         page = wx.ScrolledWindow(self.notebook)
         page.SetScrollRate(0, 20)
-        page.SetLayoutDirection(wx.Layout_RightToLeft)
+        page.SetLayoutDirection(_layout_dir())
         box = wx.BoxSizer(wx.VERTICAL)
         s = self.settings
 
         def add_row(label_text, control):
             row = wx.BoxSizer(wx.HORIZONTAL)
             lbl = wx.StaticText(page, label=label_text)
+            lbl.Wrap(340)
             row.Add(lbl, 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
             row.Add(control, 1, wx.ALL | wx.EXPAND, 6)
             box.Add(row, 0, wx.EXPAND)
             control.SetName(label_text)
             return control
+
+        # --- language first, "like any program": auto follows Windows,
+        # manual override here; applies fully on restart
+        self._lang_codes = ["auto", "ar", "en", "fr"]
+        lang_choices = [S.OPT_LANG_AUTO] + [S.LANGUAGES[c] for c in ("ar", "en", "fr")]
+        self.language_choice = add_row(S.SET_LANGUAGE, wx.Choice(page, choices=lang_choices))
+        cur = s.language if s.language in self._lang_codes else "auto"
+        self.language_choice.SetSelection(self._lang_codes.index(cur))
 
         # --- location: country -> city, plus auto-detect
         country_names = [d for _, d in world.countries()]
@@ -234,7 +258,7 @@ class MainFrame(wx.Frame):
         # --- startup bismillah reciter
         self.bismillah_choice = add_row(
             S.SET_BISMILLAH_VOICE,
-            wx.Choice(page, choices=[name for _, name, *_ in snd.BISMILLAH_VOICES] + [S.OPT_RANDOM]),
+            wx.Choice(page, choices=[snd.bismillah_voice_name(k) for k, *_ in snd.BISMILLAH_VOICES] + [S.OPT_RANDOM]),
         )
         keys = [k for k, *_ in snd.BISMILLAH_VOICES] + ["random"]
         self.bismillah_choice.SetSelection(
@@ -244,25 +268,29 @@ class MainFrame(wx.Frame):
         # --- per-prayer alerts: pre-adhan / iqama / post-prayer adhkar
         grid = wx.FlexGridSizer(rows=len(ADHAN_PRAYERS) + 1, cols=4, vgap=4, hgap=6)
         for head in (S.HDR_PRAYER, S.HDR_PRE, S.HDR_IQAMA, S.HDR_POST):
-            grid.Add(wx.StaticText(page, label=head), 0, wx.ALL, 4)
+            heading = wx.StaticText(page, label=head)
+            heading.Wrap(170)
+            grid.Add(heading, 0, wx.ALL, 4)
+        for col in (1, 2, 3):
+            grid.AddGrowableCol(col)
         self.pre_choices = {}
         self.iqama_spins = {}
         self.post_choices = {}
         for prayer in ADHAN_PRAYERS:
-            ar = ARABIC_NAMES[prayer]
-            grid.Add(wx.StaticText(page, label=ar), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 4)
+            pname = S.prayer_name(prayer)
+            grid.Add(wx.StaticText(page, label=pname), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 4)
             pre = wx.Choice(page, choices=[_minutes_label(m) for m in PRE_ADHAN_CHOICES])
-            pre.SetName(f"{S.HDR_PRE} - {ar}")
+            pre.SetName(f"{S.HDR_PRE} - {pname}")
             v = s.pre_adhan_for(prayer)
             pre.SetSelection(PRE_ADHAN_CHOICES.index(v) if v in PRE_ADHAN_CHOICES else 1)
             grid.Add(pre, 1, wx.ALL | wx.EXPAND, 4)
             self.pre_choices[prayer] = pre
             spin = wx.SpinCtrl(page, min=0, max=60, initial=s.iqama_for(prayer))
-            spin.SetName(f"{S.HDR_IQAMA} - {ar}")
+            spin.SetName(f"{S.HDR_IQAMA} - {pname}")
             grid.Add(spin, 1, wx.ALL | wx.EXPAND, 4)
             self.iqama_spins[prayer] = spin
             post = wx.Choice(page, choices=[_minutes_label(m) for m in PRE_ADHAN_CHOICES])
-            post.SetName(f"{S.HDR_POST} - {ar}")
+            post.SetName(f"{S.HDR_POST} - {pname}")
             v = s.post_adhkar_for(prayer)
             post.SetSelection(PRE_ADHAN_CHOICES.index(v) if v in PRE_ADHAN_CHOICES else 0)
             grid.Add(post, 1, wx.ALL | wx.EXPAND, 4)
@@ -309,12 +337,26 @@ class MainFrame(wx.Frame):
         save_btn.Bind(wx.EVT_BUTTON, lambda e: self.apply_settings())
         box.Add(save_btn, 0, wx.ALL, 8)
 
+        # --- updates: manual check + an Update button that only arms after a
+        # newer version was found; the installer never runs on its own
+        box.Add(wx.StaticText(page, label=S.SET_UPDATES), 0, wx.LEFT | wx.TOP, 8)
+        upd_row = wx.BoxSizer(wx.HORIZONTAL)
+        self.btn_check_update = wx.Button(page, label=S.BTN_CHECK_UPDATE)
+        self.btn_check_update.Bind(wx.EVT_BUTTON, lambda e: self.on_check_update(manual=True))
+        self.btn_update_now = wx.Button(page, label=S.BTN_UPDATE_NOW)
+        self.btn_update_now.Bind(wx.EVT_BUTTON, lambda e: self.on_update_now())
+        self.btn_update_now.Enable(False)
+        upd_row.Add(self.btn_check_update, 0, wx.ALL, 4)
+        upd_row.Add(self.btn_update_now, 0, wx.ALL, 4)
+        box.Add(upd_row, 0, wx.ALL, 4)
+
         page.SetSizer(box)
+        page.FitInside()
         self.notebook.AddPage(page, S.TAB_SETTINGS)
 
     def _select_country_by_display(self, display):
         for i, (iso, disp) in enumerate(world.countries()):
-            if disp == display:
+            if disp == display or iso == world.country_iso(display):
                 self.country_choice.SetSelection(i)
                 self._fill_cities()
                 return
@@ -328,7 +370,9 @@ class MainFrame(wx.Frame):
         self._cities = world.cities_of(iso)
         self.city_choice.Set([world.city_display(c) for c in self._cities])
         for i, c in enumerate(self._cities):
-            if world.city_display(c) == self.settings.city:
+            if self.settings.city in (c.get("ar"), c["en"]) or (
+                c["lat"] == self.settings.lat and c["lng"] == self.settings.lng
+            ):
                 self.city_choice.SetSelection(i)
                 return
         if self._cities:
@@ -350,12 +394,13 @@ class MainFrame(wx.Frame):
         self.speak(S.MSG_DETECTED)
 
     def _build_sounds_tab(self):
-        page = wx.Panel(self.notebook)
-        page.SetLayoutDirection(wx.Layout_RightToLeft)
+        page = wx.ScrolledWindow(self.notebook)
+        page.SetScrollRate(0, 20)
+        page.SetLayoutDirection(_layout_dir())
         box = wx.BoxSizer(wx.VERTICAL)
 
         box.Add(wx.StaticText(page, label=S.SND_ADHAN_LIB), 0, wx.LEFT | wx.TOP, 8)
-        self.adhan_list = wx.ListBox(page, choices=[])
+        self.adhan_list = wx.ListBox(page, choices=[], size=(-1, 100))
         box.Add(self.adhan_list, 1, wx.EXPAND | wx.ALL, 8)
 
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -375,7 +420,7 @@ class MainFrame(wx.Frame):
 
         box.Add(wx.StaticText(page, label=S.SND_PER_PRAYER), 0, wx.LEFT | wx.TOP, 8)
         self.adhan_assign = {}
-        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, S.prayer_name(p)) for p in ADHAN_PRAYERS]
         for key, label in assign_rows:
             arow = wx.BoxSizer(wx.HORIZONTAL)
             arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
@@ -393,7 +438,7 @@ class MainFrame(wx.Frame):
         self._build_alert_section(page, box, "iqama")
 
         box.Add(wx.StaticText(page, label=S.SND_ADHKAR_LIB), 0, wx.LEFT | wx.TOP, 8)
-        self.adhkar_list = wx.ListBox(page, choices=[])
+        self.adhkar_list = wx.ListBox(page, choices=[], size=(-1, 100))
         box.Add(self.adhkar_list, 1, wx.EXPAND | wx.ALL, 8)
 
         row2 = wx.BoxSizer(wx.HORIZONTAL)
@@ -409,7 +454,7 @@ class MainFrame(wx.Frame):
         # library above IS this kind's list (bundled clips + his files)
         box.Add(wx.StaticText(page, label=S.SND_POST_ADHKAR_PER_PRAYER), 0, wx.LEFT | wx.TOP, 8)
         assign = {}
-        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, S.prayer_name(p)) for p in ADHAN_PRAYERS]
         for key, label in assign_rows:
             arow = wx.BoxSizer(wx.HORIZONTAL)
             arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
@@ -422,6 +467,7 @@ class MainFrame(wx.Frame):
         self._alert_ui["post_adhkar"] = {"list": None, "assign": assign, "files": []}
 
         page.SetSizer(box)
+        page.FitInside()
         self.notebook.AddPage(page, S.TAB_SOUNDS)
         self.refresh_sound_lists()
 
@@ -429,9 +475,11 @@ class MainFrame(wx.Frame):
         """One alert-sound section of the sounds tab (v1.7): library list
         (bundled tones + the user's own files), add/preview/stop buttons,
         and per-prayer assignment - the same shape as the adhan section."""
-        box.Add(wx.StaticText(page, label=S.SND_ALERT_LIB[kind]), 0, wx.LEFT | wx.TOP, 8)
-        lst = wx.ListBox(page, choices=[])
-        lst.SetName(S.SND_ALERT_LIB[kind])
+        lib_label = S.tr(_ALERT_LIB_KEYS[kind])
+        per_label = S.tr(_ALERT_PER_KEYS[kind])
+        box.Add(wx.StaticText(page, label=lib_label), 0, wx.LEFT | wx.TOP, 8)
+        lst = wx.ListBox(page, choices=[], size=(-1, 100))
+        lst.SetName(lib_label)
         box.Add(lst, 1, wx.EXPAND | wx.ALL, 8)
 
         row = wx.BoxSizer(wx.HORIZONTAL)
@@ -445,14 +493,14 @@ class MainFrame(wx.Frame):
             row.Add(b, 0, wx.ALL, 4)
         box.Add(row, 0)
 
-        box.Add(wx.StaticText(page, label=S.SND_ALERT_PER_PRAYER[kind]), 0, wx.LEFT | wx.TOP, 8)
+        box.Add(wx.StaticText(page, label=per_label), 0, wx.LEFT | wx.TOP, 8)
         assign = {}
-        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, ARABIC_NAMES[p]) for p in ADHAN_PRAYERS]
+        assign_rows = [("all", S.SND_ALL_PRAYERS)] + [(p, S.prayer_name(p)) for p in ADHAN_PRAYERS]
         for key, label in assign_rows:
             arow = wx.BoxSizer(wx.HORIZONTAL)
             arow.Add(wx.StaticText(page, label=label), 0, wx.ALL | wx.ALIGN_CENTER_VERTICAL, 6)
             achoice = wx.Choice(page, choices=[])
-            achoice.SetName(f"{S.SND_ALERT_PER_PRAYER[kind]} - {label}")
+            achoice.SetName(f"{per_label} - {label}")
             arow.Add(achoice, 1, wx.ALL | wx.EXPAND, 6)
             box.Add(arow, 0, wx.EXPAND)
             achoice.Bind(wx.EVT_CHOICE, lambda e, k=kind, kk=key: self.on_assign_alert(k, kk))
@@ -557,12 +605,13 @@ class MainFrame(wx.Frame):
         self._current_day = now.date()
         d = now.date()
         self.date_label.SetValue(
-            f"{weekday_label(d)}، {gregorian_label(d)}  /  {hijri_label(d)}"
+            S.tr("MSG_DATE_LINE").format(
+                weekday=weekday_label(d), gregorian=gregorian_label(d), hijri=hijri_label(d))
         )
         day_times = self.calc.for_date(d)
         self._day_times = day_times
         self.prayer_list.Set(
-            [f"{ARABIC_NAMES[p]}: {day_times.times[p].strftime('%H:%M')}" for p in PRAYERS]
+            [f"{S.prayer_name(p)}: {day_times.times[p].strftime('%H:%M')}" for p in PRAYERS]
         )
         self._update_countdown(now)
 
@@ -575,12 +624,15 @@ class MainFrame(wx.Frame):
         total_seconds = max(0, int(remaining.total_seconds()))
         h, rem = divmod(total_seconds, 3600)
         m, sec = divmod(rem, 60)
-        self.next_label.SetLabel(f"{S.LBL_NEXT_PRAYER}: {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}")
+        self.next_label.SetLabel(
+            f"{S.LBL_NEXT_PRAYER}: "
+            + S.tr("MSG_NEXT_PRAYER_SHORT").format(
+                name=S.prayer_name(name), time=at.strftime('%H:%M')))
         self.remaining_label.SetLabel(f"{S.LBL_REMAINING}: {h:02d}:{m:02d}:{sec:02d}")
 
     # --------------------------------------------------------------- events
     def handle_event(self, ev):
-        ar = ARABIC_NAMES.get(ev.prayer or "", "")
+        ar = S.prayer_name(ev.prayer or "")
         if ev.kind == PRE_ADHAN:
             msg = S.msg_pre_adhan(ar, self.settings.pre_adhan_for(ev.prayer))
             path = snd.resolve_alert(
@@ -644,7 +696,7 @@ class MainFrame(wx.Frame):
         try:
             self.player.play(path)
         except Exception as exc:
-            self.log(f"تعذر تشغيل الصوت: {Path(path).name}")
+            self.log(S.tr("MSG_AUDIO_FAIL").format(name=Path(path).name))
 
     def _play_next_adhkar_clip(self):
         clips = snd.all_adhkar(self.dirs["adhkar"])
@@ -652,9 +704,9 @@ class MainFrame(wx.Frame):
         clip = self.adhkar_rotation.next([p for p, _ in clips])
         if clip:
             self._safe_play(clip)
-            self.log(f"ذكر: {labels.get(str(clip), snd.display_name(clip))}")
+            self.log(S.tr("MSG_DHIKR_LINE").format(label=labels.get(str(clip), snd.display_name(clip))))
         else:
-            self.log("لا توجد مقاطع أذكار في المكتبة بعد. أضف مقاطع من تبويب الأصوات.")
+            self.log(S.MSG_ADHKAR_EMPTY)
 
     # --------------------------------------------------------------- actions
     def play_adhan_now(self):
@@ -684,7 +736,7 @@ class MainFrame(wx.Frame):
             )
             docs = Path.home() / "Documents"
             docs.mkdir(parents=True, exist_ok=True)
-            out = docs / f"مواقيت-{now.year}-{now.month:02d}.txt"
+            out = docs / f"{S.EXPORT_FILE_PREFIX}-{now.year}-{now.month:02d}.txt"
             # utf-8-sig so Windows Notepad shows the arabic correctly
             out.write_text("\n".join(lines) + "\n", encoding="utf-8-sig")
             msg = S.msg_export_done(out.name)
@@ -696,7 +748,8 @@ class MainFrame(wx.Frame):
 
     def stop_audio(self):
         self.player.stop()
-        self.log("تم إيقاف الصوت")
+        self.log(S.MSG_STOPPED)
+        self.speaker.speak(S.MSG_STOPPED)
 
     def toggle_adhkar(self):
         self.settings.adhkar_enabled = not self.settings.adhkar_enabled
@@ -713,15 +766,16 @@ class MainFrame(wx.Frame):
         total = max(0, int(remaining.total_seconds()))
         h, rem = divmod(total, 3600)
         m = rem // 60
-        text = (
-            f"الصلاة القادمة صلاة {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}. "
-            f"الوقت المتبقي {h} ساعات و{m} دقيقة."
-        )
+        text = S.msg_next_prayer_at(S.prayer_name(name), at.strftime('%H:%M')) + " " + S.msg_remaining(h, m)
         self.speaker.speak(text)
         self.log(text)
 
     def apply_settings(self):
         s = self.settings
+        li = self.language_choice.GetSelection()
+        old_language = s.language
+        if 0 <= li < len(self._lang_codes):
+            s.language = self._lang_codes[li]
         ci = self.country_choice.GetSelection()
         countries = world.countries()
         if 0 <= ci < len(countries):
@@ -765,6 +819,10 @@ class MainFrame(wx.Frame):
         self._refresh_day()
         self.log(S.MSG_SAVED)
         self.speak(S.MSG_SAVED)
+        if s.language != old_language:
+            # applies fully on restart; announced in the current language
+            self.speak(S.MSG_LANGUAGE_RESTART)
+            self.log(S.MSG_LANGUAGE_RESTART)
 
     # ------------------------------------------------------------- sounds tab
     def refresh_sound_lists(self):
@@ -797,8 +855,8 @@ class MainFrame(wx.Frame):
     def _add_files(self, directory):
         dlg = wx.FileDialog(
             self,
-            message="اختر ملفات صوتية",
-            wildcard="ملفات صوتية (*.mp3;*.wav;*.ogg)|*.mp3;*.wav;*.ogg",
+            message=S.MSG_CHOOSE_AUDIO,
+            wildcard=S.WILDCARD_AUDIO,
             style=wx.FD_OPEN | wx.FD_FILE_MUST_EXIST | wx.FD_MULTIPLE,
         )
         if dlg.ShowModal() == wx.ID_OK:
@@ -807,7 +865,7 @@ class MainFrame(wx.Frame):
                     snd.add_sound(Path(path), directory)
                     self.log(f"{S.MSG_ADDED}: {Path(path).name}")
                 except ValueError:
-                    self.log(f"نوع ملف غير مدعوم: {Path(path).name}")
+                    self.log(S.tr("MSG_BAD_FILE_TYPE").format(name=Path(path).name))
             self.refresh_sound_lists()
         dlg.Destroy()
 
@@ -865,7 +923,7 @@ class MainFrame(wx.Frame):
             secs = 6.0
         try:
             self.player.play(path)
-            self.log(f"بسم الله الرحمن الرحيم - {snd.bismillah_voice_name(voice)}")
+            self.log(S.tr("MSG_BISMILLAH_LINE").format(voice=snd.bismillah_voice_name(voice)))
             return secs
         except Exception:
             return 0.0
@@ -879,14 +937,17 @@ class MainFrame(wx.Frame):
             d = now.date()
             name, at = self.calc.next_prayer(now)
             note = notable_announcement(d)
-            text = (
-                f"برنامج {S.APP_NAME} يعمل الآن. "
-                f"اليوم {weekday_label(d)}، {gregorian_label(d)}، الموافق {hijri_label(d)}. "
-                f"{note + ' ' if note else ''}"
-                f"الصلاة القادمة صلاة {ARABIC_NAMES[name]} الساعة {at.strftime('%H:%M')}."
+            text = S.msg_launch_full(
+                app=S.APP_NAME,
+                weekday=weekday_label(d),
+                gregorian=gregorian_label(d),
+                hijri=hijri_label(d),
+                notable=(note + " ") if note else "",
+                name=S.prayer_name(name),
+                time_str=at.strftime('%H:%M'),
             )
         except Exception:
-            text = f"برنامج {S.APP_NAME} يعمل الآن."
+            text = S.msg_launch_short(S.APP_NAME)
         self.speaker.speak(text)
         self.log(text)
 
@@ -895,15 +956,110 @@ class MainFrame(wx.Frame):
         self.Iconize(False)
         self.Raise()
 
+    def _confirm_exit(self) -> bool:
+        """Accessible spoken Yes/No before any real exit (v1.8, his request:
+        Alt+F4 asks first). No cancels the close and keeps everything running."""
+        self.speaker.speak(S.MSG_CONFIRM_EXIT)
+        dlg = wx.GenericMessageDialog(
+            self, S.MSG_CONFIRM_EXIT, S.TITLE_CONFIRM_EXIT,
+            wx.YES_NO | wx.NO_DEFAULT | wx.ICON_QUESTION,
+        )
+        dlg.SetYesNoLabels(S.BTN_YES, S.BTN_NO)
+        try:
+            return dlg.ShowModal() == wx.ID_YES
+        finally:
+            dlg.Destroy()
+
     def on_close(self, event):
+        # _really_quit is set by the installer hook, the end-session handlers
+        # and the confirm path below: those close without asking again.
         if self._really_quit:
             self.timer.Stop()
             self.player.stop()
             self.Destroy()
-        else:
-            self.Hide()
-            self.notify("البرنامج ما زال يعمل في الخلفية بجانب الساعة. للخروج: قائمة ملف ثم خروج.")
+            return
+        if event.CanVeto() and not self._confirm_exit():
+            event.Veto()
+            return
+        self._really_quit = True
+        self.timer.Stop()
+        self.player.stop()
+        self.Destroy()
 
     def on_quit(self, _event):
-        self._really_quit = True
         self.Close()
+
+    # ------------------------------------------------------------- updates
+    def on_check_update(self, manual: bool):
+        """Silent launch check (manual=False) or the Settings button. Only
+        ever REPORTS; installing always needs the Update button (his rule,
+        the installer never runs on its own)."""
+        if self._update_busy or getattr(self, "_update_checking", False):
+            return
+        self._update_checking = True
+        if manual:
+            self.btn_check_update.Enable(False)
+            self.log(S.MSG_UPDATE_CHECKING)
+            self.speak(S.MSG_UPDATE_CHECKING)
+        updater.check_async(
+            lambda info, error: wx.CallAfter(self._on_update_checked, info, error, manual)
+        )
+
+    def _on_update_checked(self, info, error, manual):
+        if not self or self.IsBeingDeleted():
+            return
+        self._update_checking = False
+        self.btn_check_update.Enable(True)
+        if error or info is None:
+            if manual:
+                self.log(S.MSG_UPDATE_FAIL)
+                self.speak(S.MSG_UPDATE_FAIL)
+            return
+        if not info.newer:
+            if manual:
+                self.log(S.MSG_UPDATE_NONE)
+                self.speak(S.MSG_UPDATE_NONE)
+            return
+        self._pending_update = info
+        self.btn_update_now.Enable(True)
+        msg = S.msg_update_available(info.version)
+        self.log(msg)
+        self.speak(msg)
+        self.notify(msg)
+
+    def on_update_now(self):
+        info = self._pending_update
+        if info is None:
+            self.on_check_update(manual=True)
+            return
+        if self._update_busy:
+            return
+        self._update_busy = True
+        self.btn_update_now.Enable(False)
+        self.btn_check_update.Enable(False)
+        self.log(S.MSG_UPDATE_DOWNLOADING)
+        self.speak(S.MSG_UPDATE_DOWNLOADING)
+        updater.download_async(
+            info,
+            lambda path, error: wx.CallAfter(self._on_update_downloaded, path, error),
+        )
+
+    def _on_update_downloaded(self, path, error):
+        if not self or self.IsBeingDeleted():
+            return
+        self._update_busy = False
+        self.btn_check_update.Enable(True)
+        if error is not None or path is None:
+            self.btn_update_now.Enable(True)
+            msg = S.MSG_UPDATE_BAD_HASH if error == "hash" else S.MSG_UPDATE_FAIL
+            self.log(msg)
+            self.speak(msg)
+            return
+        self.log(S.MSG_UPDATE_STARTING)
+        self.speak(S.MSG_UPDATE_STARTING)
+        try:
+            updater.launch_installer(path)
+        except OSError:
+            self.btn_update_now.Enable(True)
+            self.log(S.MSG_UPDATE_FAIL)
+            self.speaker.speak(S.MSG_UPDATE_FAIL)

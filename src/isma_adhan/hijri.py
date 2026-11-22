@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from datetime import date
 
+from . import strings
+
 HIJRI_MONTHS_AR = [
     "محرم",
     "صفر",
@@ -39,6 +41,51 @@ GREGORIAN_MONTHS_AR = [
     "ديسمبر",
 ]
 
+HIJRI_MONTHS_EN = [
+    "Muharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani",
+    "Jumada al-Ula", "Jumada al-Akhirah", "Rajab", "Shaban",
+    "Ramadan", "Shawwal", "Dhul-Qadah", "Dhul-Hijjah",
+]
+
+HIJRI_MONTHS_FR = [
+    "Mouharram", "Safar", "Rabi al-Awwal", "Rabi al-Thani",
+    "Joumada al-Oula", "Joumada al-Akhira", "Rajab", "Chaabane",
+    "Ramadan", "Chawwal", "Dhou al-Qada", "Dhou al-Hijja",
+]
+
+WEEKDAYS_EN = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday",
+               "Saturday", "Sunday"]
+
+WEEKDAYS_FR = ["lundi", "mardi", "mercredi", "jeudi", "vendredi",
+               "samedi", "dimanche"]
+
+GREGORIAN_MONTHS_EN = [
+    "January", "February", "March", "April", "May", "June", "July",
+    "August", "September", "October", "November", "December",
+]
+
+GREGORIAN_MONTHS_FR = [
+    "janvier", "février", "mars", "avril", "mai", "juin", "juillet",
+    "août", "septembre", "octobre", "novembre", "décembre",
+]
+
+_HIJRI_MONTHS = {"ar": HIJRI_MONTHS_AR, "en": HIJRI_MONTHS_EN, "fr": HIJRI_MONTHS_FR}
+_WEEKDAYS = {"ar": WEEKDAYS_AR, "en": WEEKDAYS_EN, "fr": WEEKDAYS_FR}
+_GREGORIAN_MONTHS = {"ar": GREGORIAN_MONTHS_AR, "en": GREGORIAN_MONTHS_EN,
+                     "fr": GREGORIAN_MONTHS_FR}
+_HIJRI_SUFFIX = {"ar": "هـ", "en": "AH", "fr": "de l'hégire"}
+_GREGORIAN_SUFFIX = {"ar": "م", "en": "AD", "fr": ""}
+
+
+def hijri_month_name(month: int) -> str:
+    """1-based Hijri month name in the current UI language."""
+    return _HIJRI_MONTHS.get(strings.current_language(), HIJRI_MONTHS_AR)[month - 1]
+
+
+def gregorian_month_name(month: int) -> str:
+    """1-based Gregorian month name in the current UI language."""
+    return _GREGORIAN_MONTHS.get(strings.current_language(), GREGORIAN_MONTHS_AR)[month - 1]
+
 
 def _jd(y: int, m: int, d: int) -> int:
     """Integer Julian day for a Gregorian date."""
@@ -66,17 +113,19 @@ def gregorian_to_hijri(y: int, m: int, d: int) -> tuple:
 
 def hijri_label(day: date) -> str:
     hy, hm, hd = gregorian_to_hijri(day.year, day.month, day.day)
-    return f"{hd} {HIJRI_MONTHS_AR[hm - 1]} {hy} هـ"
+    suffix = _HIJRI_SUFFIX.get(strings.current_language(), "هـ")
+    return f"{hd} {hijri_month_name(hm)} {hy} {suffix}".strip()
 
 
 def weekday_label(day: date) -> str:
-    return WEEKDAYS_AR[day.weekday()]
+    return _WEEKDAYS.get(strings.current_language(), WEEKDAYS_AR)[day.weekday()]
 
 
 def gregorian_label(day: date) -> str:
-    """Gregorian date in Arabic words, e.g. '21 نوفمبر 2026 م' - the form a
-    screen reader speaks naturally, instead of digits and dashes."""
-    return f"{day.day} {GREGORIAN_MONTHS_AR[day.month - 1]} {day.year} م"
+    """Gregorian date in words in the current UI language, e.g. '21 نوفمبر 2026 م'
+    - the form a screen reader speaks naturally, instead of digits and dashes."""
+    suffix = _GREGORIAN_SUFFIX.get(strings.current_language(), "م")
+    return f"{day.day} {gregorian_month_name(day.month)} {day.year} {suffix}".strip()
 
 
 def _jd_to_gregorian(jd: int) -> tuple:
@@ -123,9 +172,21 @@ NOTABLE_DATES = {
 }
 
 
+_NOTABLE_EN = dict(zip(NOTABLE_DATES, [
+    "Islamic New Year", "Ashura", "the Prophet's birthday", "Isra and Miraj",
+    "the middle of Shaban", "the first day of Ramadan", "Laylat al-Qadr",
+    "the first day of Eid al-Fitr", "the Day of Arafah", "the first day of Eid al-Adha",
+]))
+_NOTABLE_FR = dict(zip(NOTABLE_DATES, [
+    "le Nouvel An hégirien", "Achoura", "la naissance du Prophète", "Al-Isra et Al-Miraj",
+    "la mi-Chaabane", "le premier jour du Ramadan", "Laylat al-Qadr",
+    "le premier jour de l'Aïd al-Fitr", "le jour d'Arafat", "le premier jour de l'Aïd al-Adha",
+]))
+
 def notable_label(day: date) -> "str | None":
     hy, hm, hd = gregorian_to_hijri(day.year, day.month, day.day)
-    return NOTABLE_DATES.get((hm, hd))
+    table = {"en": _NOTABLE_EN, "fr": _NOTABLE_FR}.get(strings.current_language(), NOTABLE_DATES)
+    return table.get((hm, hd))
 
 
 def notable_announcement(day: date) -> str:
@@ -135,6 +196,13 @@ def notable_announcement(day: date) -> str:
 
     today = notable_label(day)
     tomorrow = notable_label(day + timedelta(days=1))
+    lang = strings.current_language()
+    if lang == "en":
+        return " ".join(x for x in (f"Today is {today}." if today else "",
+                                     f"Tomorrow is {tomorrow}." if tomorrow else "") if x)
+    if lang == "fr":
+        return " ".join(x for x in (f"Aujourd'hui : {today}." if today else "",
+                                     f"Demain : {tomorrow}." if tomorrow else "") if x)
     if today and tomorrow:
         return f"اليوم {today}، وغداً {tomorrow}."
     if today:

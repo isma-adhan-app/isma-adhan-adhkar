@@ -3,7 +3,7 @@
 A Windows desktop app for prayer times, adhan audio, and periodic audio
 adhkar, designed from the start for blind users with screen readers (NVDA).
 
-- Arabic UI, right-to-left
+- Arabic, English and French UI, right-to-left for Arabic
 - every control reachable and usable with the keyboard alone (Tab + shortcuts)
 - prayer times computed fully offline with the Egyptian General Authority of
   Survey method (Fajr 19.5°, Isha 17.5°) - no internet needed after install
@@ -13,7 +13,7 @@ adhkar, designed from the start for blind users with screen readers (NVDA).
 - adhan at each prayer with a user-managed sound library (add your own
   MP3/WAV/OGG); a different adhan sound can be assigned per prayer; until a
   sound is chosen the app chimes and speaks the prayer name through Windows
-  speech (SAPI)
+  speech (NVDA first, SAPI fallback)
 - iqama alert a configurable number of minutes after each adhan, per prayer
 - pre-adhan reminder, configurable 5-60 minutes before (steps of 5), per prayer
 - post-prayer adhkar reminder, configurable 5-60 minutes after (steps of 5),
@@ -57,14 +57,14 @@ src/isma_adhan/
   cities.py         Egyptian city coordinates
   sounds.py         sound library + random adhkar rotation
   audio.py          pygame playback backend
-  speech.py         SAPI announcements via pyttsx3
+  speech.py         NVDA announcements, with SAPI fallback
   autostart.py      Windows Run-key autostart
   hijri.py          Hijri date (Kuwaiti algorithm)
-  strings.py        all Arabic UI text
-  main_window.py    wxPython UI (Arabic, RTL, NVDA-friendly)
+  strings.py        Arabic, English and French UI text
+  main_window.py    multilingual wxPython UI, keyboard/NVDA-friendly
   app.py            wx.App + system tray
 assets/             built-in alert tones + tray icon
-tests/              pytest suite (56 tests)
+tests/              pytest suite
 tools/              tone/icon generators + JS cross-check script
 IsmaAdhan.spec      PyInstaller build
 ```
@@ -100,12 +100,15 @@ Windows produces one `IsmaAdhan.exe` he can run directly - no Python needed.
 All spoken announcements go through the running NVDA first, using the
 official NVDA Controller Client (`assets/nvda/nvdaControllerClient.dll`), so
 they use the user's own screen-reader voice and speed; when NVDA is not
-running the app falls back to SAPI. The DLL is the unmodified prebuilt x64
-binary from NV Access's official `nvda_2026.3.1_controllerClient.zip`
+running the app falls back to SAPI. The DLLs are the unmodified prebuilt
+binaries from NV Access's official `nvda_2026.3.1_controllerClient.zip`
 (https://download.nvaccess.org/releases/stable/), licensed LGPL-2.1 and
-explicitly redistributable (its license ships alongside it in
-assets/nvda/license.txt). sha256 of the DLL:
-8c8d9e1952c8b52820988081ea58c26175e69c0fbb5a09e8f2034aae70d55f0a
+explicitly redistributable (its license ships alongside them in
+assets/nvda/license.txt). The x64 build loads the x64 DLL; the x86 build
+loads the x86 DLL (`assets/nvda/x86/nvdaControllerClient.dll`, v1.8), to use the same NVDA speech path on both architectures.
+Live Acapela output on the x86 build has not yet been verified. sha256:
+x64 8c8d9e1952c8b52820988081ea58c26175e69c0fbb5a09e8f2034aae70d55f0a
+x86 17b554a3d8ddedc665c84921f304715a0b4c1c454c5cc5aee30cea0ebf81f325
 
 ## Upgrading over a running instance (v1.6)
 
@@ -221,3 +224,34 @@ licensing constraints). The post-prayer adhkar picker draws from the adhkar libr
 recitations + your adhkar folder); with nothing chosen it keeps the familiar
 shuffled rotation through the whole library. For the pre-adhan reminder and
 iqama, nothing chosen means the same tones as v1.6.
+
+## Languages, exit confirmation, updates, 32-bit (v1.8)
+
+- **Languages**: Arabic, English and French (the first delivered languages;
+  more can be added as translation tables). On first run the app follows the
+  Windows display language; a language option at the top of Settings
+  overrides that (applies fully on restart). Other Windows languages fall
+  back to Arabic until their translations are added. Country and city
+  names use English in French mode. UI text, spoken announcements
+  and dates follow the chosen language; recitation audio (adhan, adhkar,
+  Bismillah) stays Arabic. Arabic keeps the right-to-left layout; English
+  and French run left-to-right.
+- **Exit confirmation**: Alt+F4, File > Exit and the tray Exit all ask a
+  spoken Yes/No confirmation before quitting, and the dialog warns that
+  alerts stop while the app is closed. Stopping a playing adhan is still a
+  separate Stop-sound action (button, menu, Ctrl+S) that never touches the
+  schedule. Installer- and Windows-driven closes skip the confirmation, so
+  upgrades and shutdowns are never blocked.
+- **In-app updates**: a silent check runs once shortly after launch, and a
+  "check for updates" button lives in Settings. A newer release is announced
+  (spoken + notification) and arms the "install the update now" button;
+  pressing it downloads the official installer, verifies it against the
+  SHA-256 published in the release's `latest.json`, and only then runs it.
+  The installer never runs by itself. The check contacts GitHub and sends no
+  settings or sound files. Settings and custom sounds in
+  %APPDATA%\IsmaAdhan carry over (the upgrade path is E2E-tested).
+- **Two installers**: `IsmaAdhan-Setup.exe` (64-bit) and
+  `IsmaAdhan-Setup-x86.exe` (32-bit) are built and checksummed on every
+  release. CI exercises both on a 64-bit runner; note the x86 checks ran
+  under WoW64, not on native 32-bit Windows. Minimum supported installer
+  target is Windows 10. Live NVDA/Acapela speech is not exercised by CI.

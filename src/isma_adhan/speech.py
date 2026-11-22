@@ -44,8 +44,14 @@ class NvdaSpeech:
             self._failed = True
             return
         try:
-            dll_path = resource_path("assets", "nvda", "nvdaControllerClient.dll")
-            dll = ctypes.CDLL(str(dll_path))
+            # the client DLL must match THIS process's architecture: the x64
+            # build loads the x64 DLL, the x86 build the x86 one (both ship
+            # from NV Access's official controller-client bundle)
+            if sys.maxsize <= 2**32:
+                dll_path = resource_path("assets", "nvda", "x86", "nvdaControllerClient.dll")
+            else:
+                dll_path = resource_path("assets", "nvda", "nvdaControllerClient.dll")
+            dll = ctypes.WinDLL(str(dll_path))
             dll.nvdaController_testIfRunning.argtypes = []
             dll.nvdaController_testIfRunning.restype = ctypes.c_long
             dll.nvdaController_speakText.argtypes = [ctypes.c_wchar_p]
@@ -68,7 +74,7 @@ class NvdaSpeech:
             return False
 
 
-def pick_voice_id(voices) -> "str | None":
+def pick_voice_id(voices, language="ar") -> "str | None":
     """Return the id of an Arabic voice from a pyttsx3 voice list, else None."""
     for v in voices:
         try:
@@ -79,7 +85,8 @@ def pick_voice_id(voices) -> "str | None":
             blob += " " + " ".join(str(l).lower() for l in langs)
         except Exception:
             continue
-        if _ARABIC_RE.search(blob):
+        pattern = {"en": r"english|en[-_](?:us|gb|au|ca)", "fr": r"french|fran[cç]ais|fr[-_](?:fr|ca|be)"}.get(language)
+        if (re.search(pattern, blob) if pattern else _ARABIC_RE.search(blob)):
             return getattr(v, "id", None)
     return None
 
@@ -112,7 +119,8 @@ class Speaker:
 
             engine = pyttsx3.init()
             try:
-                voice_id = pick_voice_id(engine.getProperty("voices") or [])
+                from . import strings
+                voice_id = pick_voice_id(engine.getProperty("voices") or [], strings.current_language())
                 if voice_id:
                     engine.setProperty("voice", voice_id)
             except Exception:

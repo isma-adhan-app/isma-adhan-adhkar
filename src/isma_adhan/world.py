@@ -10,6 +10,7 @@ import json
 import sys
 
 from .sounds import resource_path
+from . import strings
 
 _world = None
 _zones = None
@@ -35,15 +36,23 @@ def countries() -> list:
     """[(iso, display_name)] sorted for the picker (Arabic name preferred)."""
     out = []
     for c in _load():
-        out.append((c["iso"], c.get("ar") or c["en"]))
+        out.append((c["iso"], (c.get("ar") or c["en"]) if strings.current_language() == "ar" else c["en"]))
     return out
 
 
 def country_display(iso: str) -> str:
     for c in _load():
         if c["iso"] == iso:
-            return c.get("ar") or c["en"]
+            return (c.get("ar") or c["en"]) if strings.current_language() == "ar" else c["en"]
     return iso
+
+
+def country_iso(display: str) -> str:
+    """Resolve stored legacy names without changing location when UI changes."""
+    for c in _load():
+        if display in (c["iso"], c["en"], c.get("ar")):
+            return c["iso"]
+    return ""
 
 
 def cities_of(iso: str) -> list:
@@ -55,7 +64,7 @@ def cities_of(iso: str) -> list:
 
 
 def city_display(city: dict) -> str:
-    return city.get("ar") or city["en"]
+    return (city.get("ar") or city["en"]) if strings.current_language() == "ar" else city["en"]
 
 
 def _iana_from_windows_tz(windows_name: str):
